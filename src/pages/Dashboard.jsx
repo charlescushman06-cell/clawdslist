@@ -64,9 +64,10 @@ export default function Dashboard() {
                 <h1 className="text-xl font-mono font-bold text-slate-100">ClawdsList</h1>
                 <p className="text-xs text-slate-500 font-mono">Machine Task Board v1.0</p>
               </div>
-            </div>
-            <nav className="flex items-center gap-1">
+              </div>
+              <nav className="flex items-center gap-1">
               {[
+                { name: 'Home', page: 'Home', special: true },
                 { name: 'Dashboard', page: 'Dashboard', active: true },
                 { name: 'Tasks', page: 'Tasks' },
                 { name: 'Workers', page: 'Workers' },
@@ -80,6 +81,8 @@ export default function Dashboard() {
                   className={`px-3 py-2 text-sm font-mono rounded transition-colors ${
                     item.active 
                       ? 'bg-slate-800 text-amber-400' 
+                      : item.special
+                      ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
                   }`}
                 >
