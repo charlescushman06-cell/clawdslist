@@ -14,6 +14,9 @@ const ERROR_CODES = {
   METHOD_NOT_ALLOWED: { code: 'E010', message: 'Method not allowed', status: 405 },
   RATE_LIMITED: { code: 'E011', message: 'Rate limit exceeded', status: 429 },
   INSUFFICIENT_BALANCE: { code: 'E012', message: 'Insufficient balance for required stake', status: 402 },
+  MILESTONE_NOT_FOUND: { code: 'E013', message: 'Milestone not found', status: 404 },
+  MILESTONE_NOT_ACTIVE: { code: 'E014', message: 'Milestone is not active', status: 409 },
+  MAX_ATTEMPTS_REACHED: { code: 'E015', message: 'Max attempts reached for this milestone', status: 403 },
   INTERNAL_ERROR: { code: 'E999', message: 'Internal server error', status: 500 }
 };
 
@@ -513,6 +516,135 @@ Deno.serve(async (req) => {
         created_date: s.created_date,
         reviewed_at: s.reviewed_at
       })), { count: submissions.length });
+    }
+    
+    // Get active milestone for a claimed task
+    if (action === 'get_active_milestone') {
+      if (!body.task_id) return errorResponse('INVALID_PAYLOAD', 'task_id required');
+      
+      const tasks = await base44.asServiceRole.entities.Task.filter({ id: body.task_id });
+      if (!tasks || tasks.length === 0) return errorResponse('TASK_NOT_FOUND');
+      
+      const task = tasks[0];
+      if (task.claimed_by !== worker.id) return errorResponse('TASK_NOT_CLAIMED');
+      
+      // Find active milestone
+      const milestones = await base44.asServiceRole.entities.Milestone.filter({
+        task_id: task.id,
+        status: 'active'
+      });
+      
+      if (!milestones || milestones.length === 0) {
+        return successResponse({ active_milestone: null, message: 'No active milestone' });
+      }
+      
+      const milestone = milestones[0];
+      
+      // Check attempts
+      const workerAttempts = milestone.worker_attempts ? JSON.parse(milestone.worker_attempts) : {};
+      const currentAttempts = workerAttempts[worker.id] || 0;
+      
+      return successResponse({
+        milestone_id: milestone.id,
+        order_index: milestone.order_index,
+        title: milestone.title,
+        description: milestone.description,
+        expected_duration_seconds: milestone.expected_duration_seconds,
+        activated_at: milestone.activated_at,
+        attempts_used: currentAttempts,
+        max_attempts: milestone.max_attempts_per_worker
+      });
+    }
+    
+    // Submit milestone result
+    if (action === 'submit_milestone_result') {
+      if (!body.milestone_id) return errorResponse('INVALID_PAYLOAD', 'milestone_id required');
+      if (!body.output_data) return errorResponse('INVALID_PAYLOAD', 'output_data required');
+      
+      const milestones = await base44.asServiceRole.entities.Milestone.filter({ id: body.milestone_id });
+      if (!milestones || milestones.length === 0) return errorResponse('MILESTONE_NOT_FOUND');
+      
+      const milestone = milestones[0];
+      
+      // Verify task ownership
+      const tasks = await base44.asServiceRole.entities.Task.filter({ id: milestone.task_id });
+      if (!tasks || tasks.length === 0) return errorResponse('TASK_NOT_FOUND');
+      
+      const task = tasks[0];
+      if (task.claimed_by !== worker.id) return errorResponse('TASK_NOT_CLAIMED');
+      
+      // Check milestone is active
+      if (milestone.status !== 'active') return errorResponse('MILESTONE_NOT_ACTIVE');
+      
+      // Check attempts
+      const workerAttempts = milestone.worker_attempts ? JSON.parse(milestone.worker_attempts) : {};
+      const currentAttempts = workerAttempts[worker.id] || 0;
+      
+      if (currentAttempts >= milestone.max_attempts_per_worker) {
+        return errorResponse('MAX_ATTEMPTS_REACHED');
+      }
+      
+      // Update milestone
+      workerAttempts[worker.id] = currentAttempts + 1;
+      await base44.asServiceRole.entities.Milestone.update(milestone.id, {
+        status: 'submitted',
+        output_data: typeof body.output_data === 'string' ? body.output_data : JSON.stringify(body.output_data),
+        submitted_at: new Date().toISOString(),
+        worker_attempts: JSON.stringify(workerAttempts)
+      });
+      
+      await logEvent(base44, 'milestone_submitted', 'milestone', milestone.id, 'worker', worker.id, {
+        task_id: task.id,
+        milestone_title: milestone.title,
+        attempt: currentAttempts + 1
+      });
+      
+      return successResponse({
+        milestone_id: milestone.id,
+        status: 'submitted',
+        message: 'Milestone submitted for review'
+      });
+    }
+    
+    // Get task progress (with milestones)
+    if (action === 'get_task_progress') {
+      if (!body.task_id) return errorResponse('INVALID_PAYLOAD', 'task_id required');
+      
+      const tasks = await base44.asServiceRole.entities.Task.filter({ id: body.task_id });
+      if (!tasks || tasks.length === 0) return errorResponse('TASK_NOT_FOUND');
+      
+      const task = tasks[0];
+      
+      // Get all milestones for this task
+      const milestones = await base44.asServiceRole.entities.Milestone.filter({
+        task_id: task.id
+      });
+      
+      // Sort by order_index
+      milestones.sort((a, b) => a.order_index - b.order_index);
+      
+      const progress = milestones.map(m => ({
+        milestone_id: m.id,
+        order_index: m.order_index,
+        title: m.title,
+        status: m.status,
+        activated_at: m.activated_at,
+        submitted_at: m.submitted_at,
+        completed_at: m.completed_at
+      }));
+      
+      const completedCount = milestones.filter(m => m.status === 'accepted').length;
+      const totalCount = milestones.length;
+      
+      return successResponse({
+        task_id: task.id,
+        task_status: task.status,
+        task_type: task.task_type,
+        milestones: progress,
+        progress_percentage: totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0,
+        completed_milestones: completedCount,
+        total_milestones: totalCount
+      });
     }
     
     return errorResponse('INVALID_PAYLOAD', 'Unknown action: ' + action);
