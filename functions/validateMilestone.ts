@@ -142,6 +142,62 @@ Deno.serve(async (req) => {
           completed_at: new Date().toISOString(),
           review_notes: validationResult.passed ? 'Auto-validated' : validationResult.errors.join('; ')
         });
+        
+        // Handle payment if accepted
+        if (validationResult.passed && milestone.payout_percentage) {
+          const tasks = await base44.asServiceRole.entities.Task.filter({ id: milestone.task_id });
+          if (tasks && tasks.length > 0) {
+            const task = tasks[0];
+            const milestonePayment = (task.total_price * milestone.payout_percentage) / 100;
+            const protocolFee = (milestonePayment * (task.protocol_fee_percentage || 5)) / 100;
+            
+            if (task.payer_id && task.claimed_by) {
+              await base44.functions.invoke('settlements', {
+                action: 'transfer_payment',
+                from_worker_id: task.payer_id,
+                to_worker_id: task.claimed_by,
+                task_id: task.id,
+                milestone_id: milestone_id,
+                amount: milestonePayment,
+                protocol_fee: protocolFee
+              });
+            }
+            
+            // Release milestone stake
+            if (milestone.required_stake_percentage && task.total_required_stake) {
+              const milestoneStake = (task.total_required_stake * milestone.required_stake_percentage) / 100;
+              if (milestoneStake > 0) {
+                await base44.functions.invoke('settlements', {
+                  action: 'unlock_stake',
+                  worker_id: task.claimed_by,
+                  task_id: task.id,
+                  milestone_id: milestone_id,
+                  amount: milestoneStake
+                });
+              }
+            }
+          }
+        }
+        
+        // Slash stake if rejected
+        if (!validationResult.passed && milestone.required_stake_percentage) {
+          const tasks = await base44.asServiceRole.entities.Task.filter({ id: milestone.task_id });
+          if (tasks && tasks.length > 0) {
+            const task = tasks[0];
+            const milestoneStake = (task.total_required_stake * milestone.required_stake_percentage) / 100;
+            const slashAmount = (milestoneStake * (task.slash_percentage || 100)) / 100;
+            
+            if (slashAmount > 0 && task.claimed_by) {
+              await base44.functions.invoke('settlements', {
+                action: 'slash_stake',
+                worker_id: task.claimed_by,
+                task_id: task.id,
+                milestone_id: milestone_id,
+                amount: slashAmount
+              });
+            }
+          }
+        }
 
         await base44.asServiceRole.entities.Event.create({
           event_type: validationResult.passed ? 'milestone_auto_accepted' : 'milestone_auto_rejected',

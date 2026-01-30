@@ -518,6 +518,53 @@ Deno.serve(async (req) => {
       })), { count: submissions.length });
     }
     
+    // Get worker balance
+    if (action === 'get_balance') {
+      const ledgers = await base44.asServiceRole.entities.Ledger.filter({ worker_id: worker.id });
+      const ledger = ledgers[0] || { available_balance: 0, locked_balance: 0 };
+      
+      return successResponse({
+        available_balance: ledger.available_balance || 0,
+        locked_balance: ledger.locked_balance || 0,
+        total_balance: (ledger.available_balance || 0) + (ledger.locked_balance || 0)
+      });
+    }
+    
+    // Withdraw funds
+    if (action === 'withdraw_funds') {
+      if (!body.amount || body.amount <= 0) return errorResponse('INVALID_PAYLOAD', 'Valid amount required');
+      
+      const ledgers = await base44.asServiceRole.entities.Ledger.filter({ worker_id: worker.id });
+      if (!ledgers || ledgers.length === 0) return errorResponse('INSUFFICIENT_BALANCE');
+      
+      const ledger = ledgers[0];
+      if (ledger.available_balance < body.amount) return errorResponse('INSUFFICIENT_BALANCE');
+      
+      await base44.asServiceRole.entities.Ledger.update(ledger.id, {
+        available_balance: ledger.available_balance - body.amount,
+        total_withdrawn: (ledger.total_withdrawn || 0) + body.amount
+      });
+      
+      await base44.asServiceRole.entities.Transaction.create({
+        transaction_type: 'withdrawal',
+        worker_id: worker.id,
+        amount_usd: body.amount,
+        balance_type: 'available',
+        status: 'completed',
+        notes: 'Worker withdrawal request'
+      });
+      
+      await logEvent(base44, 'funds_withdrawn', 'transaction', null, 'worker', worker.id, {
+        amount: body.amount,
+        new_balance: ledger.available_balance - body.amount
+      });
+      
+      return successResponse({
+        withdrawn: body.amount,
+        new_available_balance: ledger.available_balance - body.amount
+      });
+    }
+    
     // Get active milestone for a claimed task
     if (action === 'get_active_milestone') {
       if (!body.task_id) return errorResponse('INVALID_PAYLOAD', 'task_id required');
