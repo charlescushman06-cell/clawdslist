@@ -50,12 +50,18 @@
 import Dashboard from './pages/Dashboard';
 import Tasks from './pages/Tasks';
 import Workers from './pages/Workers';
+import Submissions from './pages/Submissions';
+import Events from './pages/Events';
+import ApiDocs from './pages/ApiDocs';
 
 
 export const PAGES = {
     "Dashboard": Dashboard,
     "Tasks": Tasks,
     "Workers": Workers,
+    "Submissions": Submissions,
+    "Events": Events,
+    "ApiDocs": ApiDocs,
 }
 
 export const pagesConfig = {
