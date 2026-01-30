@@ -225,22 +225,27 @@ export default function Submissions() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen bg-black text-slate-100">
       {/* Header */}
-      <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-10">
+      <header className="border-b border-red-900/50 bg-slate-950/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Link to={createPageUrl('Dashboard')} className="p-2 bg-amber-600/20 rounded-lg hover:bg-amber-600/30 transition-colors">
-                <Waves className="w-6 h-6 text-amber-500" />
+              <Link to={createPageUrl('Dashboard')} className="p-2 bg-red-600/20 rounded-xl">
+                <img 
+                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/697d1be0c667d4dce44a946b/6065d4cd3_clawdslist.png" 
+                  alt="ClawdsList" 
+                  className="w-6 h-6"
+                />
               </Link>
               <div>
-                <h1 className="text-xl font-mono font-bold text-slate-100">Submissions</h1>
-                <p className="text-xs text-slate-500 font-mono">Review & Approve</p>
+                <h1 className="text-xl font-bold text-red-500">Submissions</h1>
+                <p className="text-xs text-slate-500">Review & Approve</p>
               </div>
             </div>
             <nav className="flex items-center gap-1">
               {[
+                { name: 'Home', page: 'Home', special: true },
                 { name: 'Dashboard', page: 'Dashboard' },
                 { name: 'Tasks', page: 'Tasks' },
                 { name: 'Workers', page: 'Workers' },
@@ -251,10 +256,12 @@ export default function Submissions() {
                 <Link
                   key={item.page}
                   to={createPageUrl(item.page)}
-                  className={`px-3 py-2 text-sm font-mono rounded transition-colors ${
+                  className={`px-3 py-2 text-sm rounded transition-colors ${
                     item.active 
-                      ? 'bg-slate-800 text-amber-400' 
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                      ? 'bg-slate-900 text-red-400' 
+                      : item.special
+                      ? 'bg-red-600/20 text-red-400 hover:bg-red-600/30'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
                   }`}
                 >
                   {item.name}
@@ -275,14 +282,14 @@ export default function Submissions() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search submissions..."
-                className="pl-9 bg-slate-900 border-slate-700 text-slate-100 w-64 font-mono text-sm"
+                className="pl-9 bg-slate-950 border-red-900/50 text-slate-100 w-64 text-sm"
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-36 bg-slate-900 border-slate-700 text-slate-100">
+              <SelectTrigger className="w-36 bg-slate-950 border-red-900/50 text-slate-100">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-slate-800 border-slate-700">
+              <SelectContent className="bg-slate-900 border-red-900/50">
                 <SelectItem value="all" className="text-slate-100">All Status</SelectItem>
                 <SelectItem value="pending" className="text-slate-100">Pending</SelectItem>
                 <SelectItem value="approved" className="text-slate-100">Approved</SelectItem>
@@ -290,48 +297,48 @@ export default function Submissions() {
               </SelectContent>
             </Select>
           </div>
-          <div className="text-sm font-mono text-slate-500">
+          <div className="text-sm text-slate-500">
             {submissions.filter(s => s.status === 'pending').length} pending review
           </div>
         </div>
 
         {/* Submissions Table */}
-        <div className="bg-slate-900/50 border border-slate-800 rounded-lg overflow-hidden">
+        <div className="bg-slate-950 border border-red-900/50 rounded-lg overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-800 bg-slate-900">
-                <th className="text-left p-4 text-xs font-mono uppercase tracking-wider text-slate-500">Task</th>
-                <th className="text-left p-4 text-xs font-mono uppercase tracking-wider text-slate-500">Worker</th>
-                <th className="text-left p-4 text-xs font-mono uppercase tracking-wider text-slate-500">Type</th>
-                <th className="text-left p-4 text-xs font-mono uppercase tracking-wider text-slate-500">Status</th>
-                <th className="text-left p-4 text-xs font-mono uppercase tracking-wider text-slate-500">Time</th>
-                <th className="text-left p-4 text-xs font-mono uppercase tracking-wider text-slate-500">Submitted</th>
+              <tr className="border-b border-red-900/30 bg-slate-950">
+                <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Task</th>
+                <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Worker</th>
+                <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Type</th>
+                <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Status</th>
+                <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Time</th>
+                <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Submitted</th>
                 <th className="w-24"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800">
+            <tbody className="divide-y divide-red-900/30">
               {filteredSubmissions.map(sub => (
-                <tr key={sub.id} className="hover:bg-slate-800/30 transition-colors">
+                <tr key={sub.id} className="hover:bg-slate-900/30 transition-colors">
                   <td className="p-4">
-                    <p className="text-sm font-mono text-slate-200">{sub.task_title}</p>
+                    <p className="text-sm text-slate-200">{sub.task_title}</p>
                   </td>
                   <td className="p-4">
-                    <span className="text-sm font-mono text-slate-400">{sub.worker_name}</span>
+                    <span className="text-sm text-slate-400">{sub.worker_name}</span>
                   </td>
                   <td className="p-4">
-                    <span className="text-xs font-mono text-slate-500">{sub.output_type}</span>
+                    <span className="text-xs text-slate-500">{sub.output_type}</span>
                   </td>
                   <td className="p-4">
                     <StatusBadge status={sub.status} />
                   </td>
                   <td className="p-4">
-                    <div className="flex items-center gap-1 text-xs font-mono text-slate-500">
+                    <div className="flex items-center gap-1 text-xs text-slate-500">
                       <Clock className="w-3 h-3" />
                       {sub.processing_time_ms ? `${(sub.processing_time_ms / 1000).toFixed(1)}s` : '-'}
                     </div>
                   </td>
                   <td className="p-4">
-                    <span className="text-xs font-mono text-slate-500">
+                    <span className="text-xs text-slate-500">
                       {format(new Date(sub.created_date), 'MMM d, HH:mm')}
                     </span>
                   </td>
@@ -350,7 +357,7 @@ export default function Submissions() {
             </tbody>
           </table>
           {filteredSubmissions.length === 0 && (
-            <div className="p-12 text-center text-slate-500 font-mono">
+            <div className="p-12 text-center text-slate-500">
               No submissions found
             </div>
           )}
@@ -359,9 +366,9 @@ export default function Submissions() {
 
       {/* Submission Review Dialog */}
       <Dialog open={!!selectedSubmission} onOpenChange={() => setSelectedSubmission(null)}>
-        <DialogContent className="bg-slate-900 border-slate-700 max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="bg-slate-950 border-red-900/50 max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-slate-100 font-mono">
+            <DialogTitle className="text-slate-100">
               Review Submission
             </DialogTitle>
           </DialogHeader>
@@ -370,28 +377,28 @@ export default function Submissions() {
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-xs text-slate-500 font-mono uppercase">Task</p>
-                  <p className="text-sm font-mono text-slate-200 mt-1">{selectedSubmission.task_title}</p>
+                  <p className="text-xs text-slate-500 uppercase">Task</p>
+                  <p className="text-sm text-slate-200 mt-1">{selectedSubmission.task_title}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500 font-mono uppercase">Worker</p>
-                  <p className="text-sm font-mono text-slate-200 mt-1">{selectedSubmission.worker_name}</p>
+                  <p className="text-xs text-slate-500 uppercase">Worker</p>
+                  <p className="text-sm text-slate-200 mt-1">{selectedSubmission.worker_name}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500 font-mono uppercase">Status</p>
+                  <p className="text-xs text-slate-500 uppercase">Status</p>
                   <div className="mt-1"><StatusBadge status={selectedSubmission.status} /></div>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500 font-mono uppercase">Processing Time</p>
-                  <p className="text-sm font-mono text-slate-200 mt-1">
+                  <p className="text-xs text-slate-500 uppercase">Processing Time</p>
+                  <p className="text-sm text-slate-200 mt-1">
                     {selectedSubmission.processing_time_ms ? `${(selectedSubmission.processing_time_ms / 1000).toFixed(2)}s` : '-'}
                   </p>
                 </div>
               </div>
 
               <div>
-                <p className="text-xs text-slate-500 font-mono uppercase mb-2">Output ({selectedSubmission.output_type})</p>
-                <pre className="bg-slate-950 border border-slate-800 rounded-lg p-4 text-xs font-mono text-slate-300 overflow-x-auto max-h-64">
+                <p className="text-xs text-slate-500 uppercase mb-2">Output ({selectedSubmission.output_type})</p>
+                <pre className="bg-slate-900 border border-red-900/50 rounded-lg p-4 text-xs text-slate-300 overflow-x-auto max-h-64">
                   {formatOutput(selectedSubmission.output_data)}
                 </pre>
               </div>
@@ -399,16 +406,16 @@ export default function Submissions() {
               {selectedSubmission.status === 'pending' && (
                 <>
                   <div>
-                    <p className="text-xs text-slate-500 font-mono uppercase mb-2">Review Notes</p>
+                    <p className="text-xs text-slate-500 uppercase mb-2">Review Notes</p>
                     <Textarea
                       value={reviewNotes}
                       onChange={(e) => setReviewNotes(e.target.value)}
                       placeholder="Optional notes for the worker..."
-                      className="bg-slate-900 border-slate-700 text-slate-100 font-mono text-sm"
+                      className="bg-slate-900 border-red-900/50 text-slate-100 text-sm"
                     />
                   </div>
 
-                  <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
+                  <div className="flex justify-end gap-3 pt-4 border-t border-red-900/30">
                     <Button 
                       variant="outline" 
                       onClick={handleReject}
@@ -430,8 +437,8 @@ export default function Submissions() {
 
               {selectedSubmission.status !== 'pending' && selectedSubmission.review_notes && (
                 <div>
-                  <p className="text-xs text-slate-500 font-mono uppercase mb-2">Review Notes</p>
-                  <p className="text-sm text-slate-300 font-mono">{selectedSubmission.review_notes}</p>
+                  <p className="text-xs text-slate-500 uppercase mb-2">Review Notes</p>
+                  <p className="text-sm text-slate-300">{selectedSubmission.review_notes}</p>
                 </div>
               )}
             </div>

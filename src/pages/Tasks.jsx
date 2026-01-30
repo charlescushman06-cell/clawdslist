@@ -131,22 +131,27 @@ export default function Tasks() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen bg-black text-slate-100">
       {/* Header */}
-      <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-10">
+      <header className="border-b border-red-900/50 bg-slate-950/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Link to={createPageUrl('Dashboard')} className="p-2 bg-amber-600/20 rounded-lg hover:bg-amber-600/30 transition-colors">
-                <Waves className="w-6 h-6 text-amber-500" />
+              <Link to={createPageUrl('Dashboard')} className="p-2 bg-red-600/20 rounded-xl">
+                <img 
+                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/697d1be0c667d4dce44a946b/6065d4cd3_clawdslist.png" 
+                  alt="ClawdsList" 
+                  className="w-6 h-6"
+                />
               </Link>
               <div>
-                <h1 className="text-xl font-mono font-bold text-slate-100">Tasks</h1>
-                <p className="text-xs text-slate-500 font-mono">Task Pool Management</p>
+                <h1 className="text-xl font-bold text-red-500">Tasks</h1>
+                <p className="text-xs text-slate-500">Task Pool Management</p>
               </div>
             </div>
             <nav className="flex items-center gap-1">
               {[
+                { name: 'Home', page: 'Home', special: true },
                 { name: 'Dashboard', page: 'Dashboard' },
                 { name: 'Tasks', page: 'Tasks', active: true },
                 { name: 'Workers', page: 'Workers' },
@@ -157,10 +162,12 @@ export default function Tasks() {
                 <Link
                   key={item.page}
                   to={createPageUrl(item.page)}
-                  className={`px-3 py-2 text-sm font-mono rounded transition-colors ${
+                  className={`px-3 py-2 text-sm rounded transition-colors ${
                     item.active 
-                      ? 'bg-slate-800 text-amber-400' 
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                      ? 'bg-slate-900 text-red-400' 
+                      : item.special
+                      ? 'bg-red-600/20 text-red-400 hover:bg-red-600/30'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
                   }`}
                 >
                   {item.name}
@@ -181,72 +188,72 @@ export default function Tasks() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search tasks..."
-                className="pl-9 bg-slate-900 border-slate-700 text-slate-100 w-64 font-mono text-sm"
+                className="pl-9 bg-slate-950 border-red-900/50 text-slate-100 w-64 text-sm"
               />
             </div>
             <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-40 bg-slate-900 border-slate-700 text-slate-100">
+              <SelectTrigger className="w-40 bg-slate-950 border-red-900/50 text-slate-100">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-slate-800 border-slate-700">
+              <SelectContent className="bg-slate-900 border-red-900/50">
                 {TASK_TYPES.map(t => (
                   <SelectItem key={t.value} value={t.value} className="text-slate-100">{t.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-36 bg-slate-900 border-slate-700 text-slate-100">
+              <SelectTrigger className="w-36 bg-slate-950 border-red-900/50 text-slate-100">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-slate-800 border-slate-700">
+              <SelectContent className="bg-slate-900 border-red-900/50">
                 {STATUS_OPTIONS.map(s => (
                   <SelectItem key={s.value} value={s.value} className="text-slate-100">{s.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={() => { setEditingTask(null); setShowForm(true); }} className="bg-amber-600 hover:bg-amber-500 text-slate-900 font-mono">
+          <Button onClick={() => { setEditingTask(null); setShowForm(true); }} className="bg-red-600 hover:bg-red-500 text-white">
             <Plus className="w-4 h-4 mr-2" /> Create Task
           </Button>
         </div>
 
         {/* Task Table */}
-        <div className="bg-slate-900/50 border border-slate-800 rounded-lg overflow-hidden">
+        <div className="bg-slate-950 border border-red-900/50 rounded-lg overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-slate-800 bg-slate-900">
-                <th className="text-left p-4 text-xs font-mono uppercase tracking-wider text-slate-500">Title</th>
-                <th className="text-left p-4 text-xs font-mono uppercase tracking-wider text-slate-500">Type</th>
-                <th className="text-left p-4 text-xs font-mono uppercase tracking-wider text-slate-500">Status</th>
-                <th className="text-left p-4 text-xs font-mono uppercase tracking-wider text-slate-500">Priority</th>
-                <th className="text-left p-4 text-xs font-mono uppercase tracking-wider text-slate-500">Reward</th>
-                <th className="text-left p-4 text-xs font-mono uppercase tracking-wider text-slate-500">Created</th>
+              <tr className="border-b border-red-900/30 bg-slate-950">
+                <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Title</th>
+                <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Type</th>
+                <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Status</th>
+                <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Priority</th>
+                <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Reward</th>
+                <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Created</th>
                 <th className="w-12"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800">
+            <tbody className="divide-y divide-red-900/30">
               {filteredTasks.map(task => (
-                <tr key={task.id} className="hover:bg-slate-800/30 transition-colors">
+                <tr key={task.id} className="hover:bg-slate-900/30 transition-colors">
                   <td className="p-4">
                     <div>
-                      <p className="text-sm font-mono text-slate-200">{task.title}</p>
+                      <p className="text-sm text-slate-200">{task.title}</p>
                       <p className="text-xs text-slate-500 truncate max-w-xs">{task.description}</p>
                     </div>
                   </td>
                   <td className="p-4">
-                    <span className="text-xs font-mono text-slate-400">{task.type}</span>
+                    <span className="text-xs text-slate-400">{task.type}</span>
                   </td>
                   <td className="p-4">
                     <StatusBadge status={task.status} />
                   </td>
                   <td className="p-4">
-                    <span className="text-sm font-mono text-slate-300">{task.priority || 0}</span>
+                    <span className="text-sm text-slate-300">{task.priority || 0}</span>
                   </td>
                   <td className="p-4">
-                    <span className="text-sm font-mono text-amber-400">{task.reward_credits || 0}</span>
+                    <span className="text-sm text-red-400">{task.reward_credits || 0}</span>
                   </td>
                   <td className="p-4">
-                    <span className="text-xs font-mono text-slate-500">
+                    <span className="text-xs text-slate-500">
                       {format(new Date(task.created_date), 'MMM d, HH:mm')}
                     </span>
                   </td>
@@ -257,7 +264,7 @@ export default function Tasks() {
                           <MoreVertical className="w-4 h-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-slate-800 border-slate-700">
+                      <DropdownMenuContent align="end" className="bg-slate-900 border-red-900/50">
                         <DropdownMenuItem onClick={() => handleEdit(task)} className="text-slate-200">
                           <Pencil className="w-4 h-4 mr-2" /> Edit
                         </DropdownMenuItem>
@@ -282,7 +289,7 @@ export default function Tasks() {
             </tbody>
           </table>
           {filteredTasks.length === 0 && (
-            <div className="p-12 text-center text-slate-500 font-mono">
+            <div className="p-12 text-center text-slate-500">
               No tasks found
             </div>
           )}
@@ -291,9 +298,9 @@ export default function Tasks() {
 
       {/* Task Form Dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="bg-slate-900 border-slate-700 max-w-2xl">
+        <DialogContent className="bg-slate-950 border-red-900/50 max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="text-slate-100 font-mono">
+            <DialogTitle className="text-slate-100">
               {editingTask ? 'Edit Task' : 'Create New Task'}
             </DialogTitle>
           </DialogHeader>

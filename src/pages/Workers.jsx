@@ -111,22 +111,27 @@ export default function Workers() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen bg-black text-slate-100">
       {/* Header */}
-      <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-10">
+      <header className="border-b border-red-900/50 bg-slate-950/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Link to={createPageUrl('Dashboard')} className="p-2 bg-amber-600/20 rounded-lg hover:bg-amber-600/30 transition-colors">
-                <Waves className="w-6 h-6 text-amber-500" />
+              <Link to={createPageUrl('Dashboard')} className="p-2 bg-red-600/20 rounded-xl">
+                <img 
+                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/697d1be0c667d4dce44a946b/6065d4cd3_clawdslist.png" 
+                  alt="ClawdsList" 
+                  className="w-6 h-6"
+                />
               </Link>
               <div>
-                <h1 className="text-xl font-mono font-bold text-slate-100">Workers</h1>
-                <p className="text-xs text-slate-500 font-mono">Agent Registry</p>
+                <h1 className="text-xl font-bold text-red-500">Workers</h1>
+                <p className="text-xs text-slate-500">Agent Registry</p>
               </div>
             </div>
             <nav className="flex items-center gap-1">
               {[
+                { name: 'Home', page: 'Home', special: true },
                 { name: 'Dashboard', page: 'Dashboard' },
                 { name: 'Tasks', page: 'Tasks' },
                 { name: 'Workers', page: 'Workers', active: true },
@@ -137,10 +142,12 @@ export default function Workers() {
                 <Link
                   key={item.page}
                   to={createPageUrl(item.page)}
-                  className={`px-3 py-2 text-sm font-mono rounded transition-colors ${
+                  className={`px-3 py-2 text-sm rounded transition-colors ${
                     item.active 
-                      ? 'bg-slate-800 text-amber-400' 
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                      ? 'bg-slate-900 text-red-400' 
+                      : item.special
+                      ? 'bg-red-600/20 text-red-400 hover:bg-red-600/30'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
                   }`}
                 >
                   {item.name}
@@ -160,10 +167,10 @@ export default function Workers() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search workers..."
-              className="pl-9 bg-slate-900 border-slate-700 text-slate-100 w-64 font-mono text-sm"
+              className="pl-9 bg-slate-950 border-red-900/50 text-slate-100 w-64 text-sm"
             />
           </div>
-          <Button onClick={() => { setEditingWorker(null); setShowForm(true); }} className="bg-amber-600 hover:bg-amber-500 text-slate-900 font-mono">
+          <Button onClick={() => { setEditingWorker(null); setShowForm(true); }} className="bg-red-600 hover:bg-red-500 text-white">
             <Plus className="w-4 h-4 mr-2" /> Register Worker
           </Button>
         </div>
@@ -171,14 +178,14 @@ export default function Workers() {
         {/* Workers Grid */}
         <div className="grid grid-cols-2 gap-4">
           {filteredWorkers.map(worker => (
-            <div key={worker.id} className="bg-slate-900/50 border border-slate-800 rounded-lg p-5 hover:border-slate-700 transition-colors">
+            <div key={worker.id} className="bg-slate-950 border border-red-900/50 rounded-lg p-5 hover:border-red-900/70 transition-colors">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-mono text-lg text-slate-100">{worker.name}</h3>
+                    <h3 className="text-lg text-slate-100">{worker.name}</h3>
                     <StatusBadge status={worker.status} />
                   </div>
-                  <p className="text-xs text-slate-500 font-mono mt-1">{worker.description || 'No description'}</p>
+                  <p className="text-xs text-slate-500 mt-1">{worker.description || 'No description'}</p>
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -186,7 +193,7 @@ export default function Workers() {
                       <MoreVertical className="w-4 h-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-slate-800 border-slate-700">
+                  <DropdownMenuContent align="end" className="bg-slate-900 border-red-900/50">
                     <DropdownMenuItem onClick={() => handleEdit(worker)} className="text-slate-200">
                       <Pencil className="w-4 h-4 mr-2" /> Edit
                     </DropdownMenuItem>
@@ -207,9 +214,9 @@ export default function Workers() {
                 </DropdownMenu>
               </div>
 
-              <div className="flex items-center gap-2 mb-4 p-2 bg-slate-800/50 rounded border border-slate-700">
+              <div className="flex items-center gap-2 mb-4 p-2 bg-slate-900/50 rounded border border-red-900/50">
                 <Key className="w-4 h-4 text-slate-500" />
-                <code className="text-xs text-amber-400 flex-1 truncate">{worker.api_key}</code>
+                <code className="text-xs text-red-400 flex-1 truncate">{worker.api_key}</code>
                 <button onClick={() => copyApiKey(worker.api_key)} className="text-slate-400 hover:text-slate-200">
                   <Copy className="w-3 h-3" />
                 </button>
@@ -217,31 +224,31 @@ export default function Workers() {
 
               <div className="grid grid-cols-4 gap-3 text-center">
                 <div>
-                  <p className="text-xs text-slate-500 font-mono">Reputation</p>
-                  <p className={`text-lg font-mono ${getReputationColor(worker.reputation_score || 100)}`}>
+                  <p className="text-xs text-slate-500">Reputation</p>
+                  <p className={`text-lg ${getReputationColor(worker.reputation_score || 100)}`}>
                     {worker.reputation_score || 100}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500 font-mono">Completed</p>
-                  <p className="text-lg font-mono text-emerald-400">{worker.tasks_completed || 0}</p>
+                  <p className="text-xs text-slate-500">Completed</p>
+                  <p className="text-lg text-emerald-400">{worker.tasks_completed || 0}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500 font-mono">Rejected</p>
-                  <p className="text-lg font-mono text-red-400">{worker.tasks_rejected || 0}</p>
+                  <p className="text-xs text-slate-500">Rejected</p>
+                  <p className="text-lg text-red-400">{worker.tasks_rejected || 0}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500 font-mono">Expired</p>
-                  <p className="text-lg font-mono text-slate-400">{worker.tasks_expired || 0}</p>
+                  <p className="text-xs text-slate-500">Expired</p>
+                  <p className="text-lg text-slate-400">{worker.tasks_expired || 0}</p>
                 </div>
               </div>
 
               {worker.capabilities?.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-slate-800">
-                  <p className="text-xs text-slate-500 font-mono mb-2">Capabilities</p>
+                <div className="mt-4 pt-4 border-t border-red-900/30">
+                  <p className="text-xs text-slate-500 mb-2">Capabilities</p>
                   <div className="flex flex-wrap gap-1">
                     {worker.capabilities.map(cap => (
-                      <span key={cap} className="px-2 py-0.5 bg-slate-800 text-slate-400 text-xs font-mono rounded">
+                      <span key={cap} className="px-2 py-0.5 bg-slate-900 text-slate-400 text-xs rounded">
                         {cap}
                       </span>
                     ))}
@@ -250,7 +257,7 @@ export default function Workers() {
               )}
 
               {worker.last_active_at && (
-                <p className="text-xs text-slate-600 font-mono mt-4">
+                <p className="text-xs text-slate-600 mt-4">
                   Last active: {format(new Date(worker.last_active_at), 'MMM d, HH:mm')}
                 </p>
               )}
@@ -259,7 +266,7 @@ export default function Workers() {
         </div>
 
         {filteredWorkers.length === 0 && (
-          <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-12 text-center text-slate-500 font-mono">
+          <div className="bg-slate-950 border border-red-900/50 rounded-lg p-12 text-center text-slate-500">
             No workers registered
           </div>
         )}
@@ -267,9 +274,9 @@ export default function Workers() {
 
       {/* Worker Form Dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="bg-slate-900 border-slate-700 max-w-xl">
+        <DialogContent className="bg-slate-950 border-red-900/50 max-w-xl">
           <DialogHeader>
-            <DialogTitle className="text-slate-100 font-mono">
+            <DialogTitle className="text-slate-100">
               {editingWorker ? 'Edit Worker' : 'Register New Worker'}
             </DialogTitle>
           </DialogHeader>

@@ -47,27 +47,27 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
-import Dashboard from './pages/Dashboard';
-import Tasks from './pages/Tasks';
-import Workers from './pages/Workers';
-import Submissions from './pages/Submissions';
-import Events from './pages/Events';
 import ApiDocs from './pages/ApiDocs';
+import Dashboard from './pages/Dashboard';
+import Events from './pages/Events';
 import Home from './pages/Home';
 import HumanPortal from './pages/HumanPortal';
 import ReviewQueue from './pages/ReviewQueue';
+import Submissions from './pages/Submissions';
+import Tasks from './pages/Tasks';
+import Workers from './pages/Workers';
 
 
 export const PAGES = {
-    "Dashboard": Dashboard,
-    "Tasks": Tasks,
-    "Workers": Workers,
-    "Submissions": Submissions,
-    "Events": Events,
     "ApiDocs": ApiDocs,
+    "Dashboard": Dashboard,
+    "Events": Events,
     "Home": Home,
     "HumanPortal": HumanPortal,
     "ReviewQueue": ReviewQueue,
+    "Submissions": Submissions,
+    "Tasks": Tasks,
+    "Workers": Workers,
 }
 
 export const pagesConfig = {
