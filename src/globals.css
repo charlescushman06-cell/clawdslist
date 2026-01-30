@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+* {
+  font-family: 'Courier New', monospace !important;
+}
+
 :root {
   --background: 222 47% 4%;
   --foreground: 213 31% 91%;
