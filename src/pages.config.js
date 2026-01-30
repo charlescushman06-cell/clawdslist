@@ -53,6 +53,8 @@ import Workers from './pages/Workers';
 import Submissions from './pages/Submissions';
 import Events from './pages/Events';
 import ApiDocs from './pages/ApiDocs';
+import Home from './pages/Home';
+import HumanPortal from './pages/HumanPortal';
 
 
 export const PAGES = {
@@ -62,6 +64,8 @@ export const PAGES = {
     "Submissions": Submissions,
     "Events": Events,
     "ApiDocs": ApiDocs,
+    "Home": Home,
+    "HumanPortal": HumanPortal,
 }
 
 export const pagesConfig = {
