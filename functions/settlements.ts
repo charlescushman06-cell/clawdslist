@@ -39,9 +39,30 @@ async function logEvent(base44, eventData) {
   return await base44.asServiceRole.entities.Event.create(eventData);
 }
 
+async function getOrCreateLedger(base44, workerId) {
+  const ledgers = await base44.asServiceRole.entities.Ledger.filter({ worker_id: workerId });
+  if (ledgers && ledgers.length > 0) return ledgers[0];
+  
+  return await base44.asServiceRole.entities.Ledger.create({
+    worker_id: workerId,
+    available_balance: 0,
+    locked_balance: 0,
+    total_deposited: 0,
+    total_withdrawn: 0,
+    total_earned: 0,
+    total_slashed: 0
+  });
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
+    const user = await base44.auth.me();
+
+    if (!user || user.role !== 'admin') {
+      return Response.json({ error: 'Admin access required' }, { status: 403 });
+    }
+
     const payload = await req.json();
     const apiKey = payload.api_key || req.headers.get('X-API-Key');
     const action = payload.action;
@@ -60,176 +81,152 @@ Deno.serve(async (req) => {
       return errorResponse(ERROR_CODES.UNAUTHORIZED, 'Worker is not active');
     }
 
-    // Handle actions
-    switch (action) {
-      case 'get_wallet_addresses': {
-        return successResponse({
-          worker_id: worker.id,
-          eth_address: worker.eth_address || null,
-          btc_address: worker.btc_address || null,
-          note: 'Deposit to these addresses to credit your internal balance'
+    // Handle milestone payment transfer
+    if (action === 'transfer_payment') {
+      const { from_worker_id, to_worker_id, task_id, milestone_id, amount, protocol_fee } = payload;
+      
+      const fromLedger = await getOrCreateLedger(base44, from_worker_id);
+      const toLedger = await getOrCreateLedger(base44, to_worker_id);
+      
+      const netAmount = amount - protocol_fee;
+      
+      await base44.asServiceRole.entities.Ledger.update(fromLedger.id, {
+        available_balance: fromLedger.available_balance - amount
+      });
+      
+      await base44.asServiceRole.entities.Ledger.update(toLedger.id, {
+        available_balance: toLedger.available_balance + netAmount,
+        total_earned: (toLedger.total_earned || 0) + netAmount
+      });
+      
+      await base44.asServiceRole.entities.Transaction.create({
+        transaction_type: 'transfer',
+        from_worker_id,
+        to_worker_id,
+        worker_id: to_worker_id,
+        task_id,
+        amount_usd: netAmount,
+        balance_type: 'available',
+        status: 'completed',
+        metadata: JSON.stringify({ milestone_id, protocol_fee }),
+        notes: milestone_id ? 'Milestone payment' : 'Task payment'
+      });
+      
+      if (protocol_fee > 0) {
+        await base44.asServiceRole.entities.Transaction.create({
+          transaction_type: 'fee',
+          worker_id: from_worker_id,
+          task_id,
+          amount_usd: protocol_fee,
+          status: 'completed',
+          metadata: JSON.stringify({ milestone_id })
         });
       }
-
-      case 'get_balance': {
-        return successResponse({
-          worker_id: worker.id,
-          available_balance_usd: worker.available_balance_usd || 0,
-          locked_balance_usd: worker.locked_balance_usd || 0,
-          total_balance_usd: (worker.available_balance_usd || 0) + (worker.locked_balance_usd || 0),
-          total_deposited_usd: worker.total_deposited_usd || 0,
-          total_withdrawn_usd: worker.total_withdrawn_usd || 0,
-          total_earned_usd: worker.total_earned_usd || 0,
-          total_slashed_usd: worker.total_slashed_usd || 0
-        });
-      }
-
-      case 'withdraw_funds': {
-        const { amount_usd, withdrawal_address, currency } = payload;
-
-        if (!amount_usd || amount_usd <= 0) {
-          return errorResponse(ERROR_CODES.INVALID_AMOUNT);
-        }
-
-        if ((worker.available_balance_usd || 0) < amount_usd) {
-          return errorResponse(ERROR_CODES.INSUFFICIENT_BALANCE);
-        }
-
-        if (!withdrawal_address || !currency) {
-          return errorResponse(ERROR_CODES.INVALID_ACTION, 'withdrawal_address and currency required');
-        }
-
-        // Update worker balance
-        await base44.asServiceRole.entities.Worker.update(worker.id, {
-          available_balance_usd: (worker.available_balance_usd || 0) - amount_usd,
-          total_withdrawn_usd: (worker.total_withdrawn_usd || 0) + amount_usd
-        });
-
-        // Log transaction
-        const tx = await logTransaction(base44, {
-          transaction_type: 'withdrawal',
-          worker_id: worker.id,
-          amount_usd: amount_usd,
-          balance_type: 'available',
-          status: 'pending',
-          metadata: JSON.stringify({
-            withdrawal_address,
-            currency: currency.toUpperCase()
-          }),
-          notes: `Withdrawal request: ${amount_usd} USD to ${withdrawal_address}`
-        });
-
-        // Log event
-        await logEvent(base44, {
-          event_type: 'funds_withdrawn',
-          entity_type: 'transaction',
-          entity_id: tx.id,
-          actor_type: 'worker',
-          actor_id: worker.id,
-          details: JSON.stringify({ amount_usd, currency, withdrawal_address })
-        });
-
-        return successResponse({
-          transaction_id: tx.id,
-          amount_usd: amount_usd,
-          withdrawal_address: withdrawal_address,
-          currency: currency.toUpperCase(),
-          status: 'pending',
-          note: 'Withdrawal queued for processing. Funds will be sent to your address within 24h.'
-        });
-      }
-
-      case 'lock_funds': {
-        const { amount_usd, reason } = payload;
-
-        if (!amount_usd || amount_usd <= 0) {
-          return errorResponse(ERROR_CODES.INVALID_AMOUNT);
-        }
-
-        if ((worker.available_balance_usd || 0) < amount_usd) {
-          return errorResponse(ERROR_CODES.INSUFFICIENT_BALANCE);
-        }
-
-        // Update balances atomically
-        await base44.asServiceRole.entities.Worker.update(worker.id, {
-          available_balance_usd: (worker.available_balance_usd || 0) - amount_usd,
-          locked_balance_usd: (worker.locked_balance_usd || 0) + amount_usd
-        });
-
-        // Log transaction
-        const tx = await logTransaction(base44, {
-          transaction_type: 'lock',
-          worker_id: worker.id,
-          amount_usd: amount_usd,
-          balance_type: 'locked',
-          notes: reason || 'Manual lock'
-        });
-
-        // Log event
-        await logEvent(base44, {
-          event_type: 'funds_locked',
-          entity_type: 'transaction',
-          entity_id: tx.id,
-          actor_type: 'worker',
-          actor_id: worker.id,
-          details: JSON.stringify({ amount_usd, reason })
-        });
-
-        return successResponse({
-          transaction_id: tx.id,
-          amount_locked_usd: amount_usd,
-          available_balance_usd: (worker.available_balance_usd || 0) - amount_usd,
-          locked_balance_usd: (worker.locked_balance_usd || 0) + amount_usd
-        });
-      }
-
-      case 'release_funds': {
-        const { amount_usd, reason } = payload;
-
-        if (!amount_usd || amount_usd <= 0) {
-          return errorResponse(ERROR_CODES.INVALID_AMOUNT);
-        }
-
-        if ((worker.locked_balance_usd || 0) < amount_usd) {
-          return errorResponse(ERROR_CODES.INSUFFICIENT_BALANCE, 'Insufficient locked balance');
-        }
-
-        // Update balances atomically
-        await base44.asServiceRole.entities.Worker.update(worker.id, {
-          available_balance_usd: (worker.available_balance_usd || 0) + amount_usd,
-          locked_balance_usd: (worker.locked_balance_usd || 0) - amount_usd
-        });
-
-        // Log transaction
-        const tx = await logTransaction(base44, {
-          transaction_type: 'unlock',
-          worker_id: worker.id,
-          amount_usd: amount_usd,
-          balance_type: 'available',
-          notes: reason || 'Manual unlock'
-        });
-
-        // Log event
-        await logEvent(base44, {
-          event_type: 'funds_unlocked',
-          entity_type: 'transaction',
-          entity_id: tx.id,
-          actor_type: 'worker',
-          actor_id: worker.id,
-          details: JSON.stringify({ amount_usd, reason })
-        });
-
-        return successResponse({
-          transaction_id: tx.id,
-          amount_unlocked_usd: amount_usd,
-          available_balance_usd: (worker.available_balance_usd || 0) + amount_usd,
-          locked_balance_usd: (worker.locked_balance_usd || 0) - amount_usd
-        });
-      }
-
-      default:
-        return errorResponse(ERROR_CODES.INVALID_ACTION);
+      
+      await base44.asServiceRole.entities.Event.create({
+        event_type: 'funds_transferred',
+        entity_type: 'transaction',
+        actor_type: 'system',
+        details: JSON.stringify({ from_worker_id, to_worker_id, amount: netAmount, milestone_id })
+      });
+      
+      return successResponse({ net_amount: netAmount });
     }
+    
+    if (action === 'unlock_stake') {
+      const { worker_id, task_id, milestone_id, amount } = payload;
+      
+      const ledger = await getOrCreateLedger(base44, worker_id);
+      
+      await base44.asServiceRole.entities.Ledger.update(ledger.id, {
+        available_balance: ledger.available_balance + amount,
+        locked_balance: Math.max(0, ledger.locked_balance - amount)
+      });
+      
+      await base44.asServiceRole.entities.Transaction.create({
+        transaction_type: 'unlock',
+        worker_id,
+        task_id,
+        amount_usd: amount,
+        balance_type: 'locked',
+        status: 'completed',
+        metadata: JSON.stringify({ milestone_id })
+      });
+      
+      await base44.asServiceRole.entities.Event.create({
+        event_type: 'funds_unlocked',
+        entity_type: 'transaction',
+        entity_id: task_id,
+        actor_type: 'system',
+        details: JSON.stringify({ worker_id, amount, milestone_id })
+      });
+      
+      return successResponse({ success: true });
+    }
+    
+    if (action === 'slash_stake') {
+      const { worker_id, task_id, milestone_id, amount } = payload;
+      
+      const ledger = await getOrCreateLedger(base44, worker_id);
+      
+      await base44.asServiceRole.entities.Ledger.update(ledger.id, {
+        locked_balance: Math.max(0, ledger.locked_balance - amount),
+        total_slashed: (ledger.total_slashed || 0) + amount
+      });
+      
+      await base44.asServiceRole.entities.Transaction.create({
+        transaction_type: 'slash',
+        worker_id,
+        task_id,
+        amount_usd: amount,
+        balance_type: 'locked',
+        status: 'completed',
+        metadata: JSON.stringify({ milestone_id })
+      });
+      
+      await base44.asServiceRole.entities.Event.create({
+        event_type: 'funds_slashed',
+        entity_type: 'transaction',
+        entity_id: task_id,
+        actor_type: 'system',
+        details: JSON.stringify({ worker_id, amount, milestone_id })
+      });
+      
+      return successResponse({ success: true });
+    }
+    
+    if (action === 'deposit') {
+      const { worker_id, amount } = payload;
+      if (!worker_id || !amount || amount <= 0) {
+        return Response.json({ error: 'worker_id and valid amount required' }, { status: 400 });
+      }
+
+      const ledger = await getOrCreateLedger(base44, worker_id);
+      
+      await base44.asServiceRole.entities.Ledger.update(ledger.id, {
+        available_balance: (ledger.available_balance || 0) + amount,
+        total_deposited: (ledger.total_deposited || 0) + amount
+      });
+
+      await base44.asServiceRole.entities.Transaction.create({
+        transaction_type: 'deposit',
+        worker_id,
+        amount_usd: amount,
+        balance_type: 'available',
+        status: 'completed'
+      });
+      
+      await base44.asServiceRole.entities.Event.create({
+        event_type: 'funds_deposited',
+        entity_type: 'transaction',
+        actor_type: 'system',
+        details: JSON.stringify({ worker_id, amount })
+      });
+      
+      return successResponse({ success: true, new_balance: (ledger.available_balance || 0) + amount });
+    }
+    
+    return Response.json({ error: 'Unknown action' }, { status: 400 });
 
   } catch (error) {
     return Response.json({

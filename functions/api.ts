@@ -84,47 +84,71 @@ function calculateReputation(completed, rejected, expired) {
   return Math.max(0, Math.min(100, Math.round(successRate * 100 - penaltyRate * 20)));
 }
 
-async function lockStake(base44, worker, task) {
-  const stakeRequired = task.required_stake_usd || 0;
+async function getOrCreateLedger(base44, workerId) {
+  const ledgers = await base44.asServiceRole.entities.Ledger.filter({ worker_id: workerId });
+  if (ledgers && ledgers.length > 0) return ledgers[0];
+  
+  return await base44.asServiceRole.entities.Ledger.create({
+    worker_id: workerId,
+    available_balance: 0,
+    locked_balance: 0,
+    total_deposited: 0,
+    total_withdrawn: 0,
+    total_earned: 0,
+    total_slashed: 0
+  });
+}
+
+async function lockStake(base44, worker, task, milestoneId = null) {
+  const stakeRequired = task.task_type === 'longform' || task.task_type === 'milestone' 
+    ? (task.total_required_stake || 0) 
+    : (task.required_stake_usd || 0);
+    
   if (stakeRequired <= 0) return { success: true };
 
-  const availableBalance = worker.available_balance_usd || 0;
-  if (availableBalance < stakeRequired) {
-    return { error: 'INSUFFICIENT_BALANCE', details: `Requires ${stakeRequired} USD stake, available: ${availableBalance} USD` };
+  const ledger = await getOrCreateLedger(base44, worker.id);
+  
+  if (ledger.available_balance < stakeRequired) {
+    return { error: 'INSUFFICIENT_BALANCE', details: `Requires ${stakeRequired} USD stake, available: ${ledger.available_balance} USD` };
   }
 
-  // Lock funds atomically
-  await base44.asServiceRole.entities.Worker.update(worker.id, {
-    available_balance_usd: availableBalance - stakeRequired,
-    locked_balance_usd: (worker.locked_balance_usd || 0) + stakeRequired
+  await base44.asServiceRole.entities.Ledger.update(ledger.id, {
+    available_balance: ledger.available_balance - stakeRequired,
+    locked_balance: ledger.locked_balance + stakeRequired
   });
 
-  // Log transaction
   await base44.asServiceRole.entities.Transaction.create({
     transaction_type: 'lock',
     worker_id: worker.id,
     task_id: task.id,
     amount_usd: stakeRequired,
     balance_type: 'locked',
+    metadata: JSON.stringify({ milestone_id: milestoneId }),
     notes: `Stake locked for task: ${task.title}`
   });
 
   await logEvent(base44, 'funds_locked', 'transaction', task.id, 'system', 'system', {
     worker_id: worker.id,
     task_id: task.id,
-    amount_usd: stakeRequired
+    amount_usd: stakeRequired,
+    milestone_id: milestoneId
   });
 
   return { success: true };
 }
 
-async function unlockStake(base44, worker, task) {
-  const stakeAmount = task.required_stake_usd || 0;
+async function unlockStake(base44, worker, task, milestoneId = null) {
+  const stakeAmount = task.task_type === 'longform' || task.task_type === 'milestone' 
+    ? (task.total_required_stake || 0) 
+    : (task.required_stake_usd || 0);
+    
   if (stakeAmount <= 0) return;
 
-  await base44.asServiceRole.entities.Worker.update(worker.id, {
-    available_balance_usd: (worker.available_balance_usd || 0) + stakeAmount,
-    locked_balance_usd: Math.max(0, (worker.locked_balance_usd || 0) - stakeAmount)
+  const ledger = await getOrCreateLedger(base44, worker.id);
+
+  await base44.asServiceRole.entities.Ledger.update(ledger.id, {
+    available_balance: ledger.available_balance + stakeAmount,
+    locked_balance: Math.max(0, ledger.locked_balance - stakeAmount)
   });
 
   await base44.asServiceRole.entities.Transaction.create({
@@ -133,29 +157,35 @@ async function unlockStake(base44, worker, task) {
     task_id: task.id,
     amount_usd: stakeAmount,
     balance_type: 'available',
+    metadata: JSON.stringify({ milestone_id: milestoneId }),
     notes: `Stake unlocked for task: ${task.title}`
   });
 
   await logEvent(base44, 'funds_unlocked', 'transaction', task.id, 'system', 'system', {
     worker_id: worker.id,
     task_id: task.id,
-    amount_usd: stakeAmount
+    amount_usd: stakeAmount,
+    milestone_id: milestoneId
   });
 }
 
-async function slashStake(base44, worker, task) {
-  const stakeAmount = task.required_stake_usd || 0;
+async function slashStake(base44, worker, task, milestoneId = null) {
+  const stakeAmount = task.task_type === 'longform' || task.task_type === 'milestone' 
+    ? (task.total_required_stake || 0) 
+    : (task.required_stake_usd || 0);
+    
   if (stakeAmount <= 0) return;
 
   const slashPercentage = task.slash_percentage || 100;
   const slashAmount = (stakeAmount * slashPercentage) / 100;
   const returnAmount = stakeAmount - slashAmount;
 
-  // Slash locked funds
-  await base44.asServiceRole.entities.Worker.update(worker.id, {
-    locked_balance_usd: Math.max(0, (worker.locked_balance_usd || 0) - stakeAmount),
-    available_balance_usd: (worker.available_balance_usd || 0) + returnAmount,
-    total_slashed_usd: (worker.total_slashed_usd || 0) + slashAmount
+  const ledger = await getOrCreateLedger(base44, worker.id);
+
+  await base44.asServiceRole.entities.Ledger.update(ledger.id, {
+    locked_balance: Math.max(0, ledger.locked_balance - stakeAmount),
+    available_balance: ledger.available_balance + returnAmount,
+    total_slashed: (ledger.total_slashed || 0) + slashAmount
   });
 
   if (slashAmount > 0) {
@@ -165,6 +195,7 @@ async function slashStake(base44, worker, task) {
       task_id: task.id,
       amount_usd: slashAmount,
       balance_type: 'locked',
+      metadata: JSON.stringify({ milestone_id: milestoneId }),
       notes: `Stake slashed (${slashPercentage}%) for task: ${task.title}`
     });
 
@@ -172,7 +203,8 @@ async function slashStake(base44, worker, task) {
       worker_id: worker.id,
       task_id: task.id,
       amount_usd: slashAmount,
-      percentage: slashPercentage
+      percentage: slashPercentage,
+      milestone_id: milestoneId
     });
   }
 
@@ -183,40 +215,32 @@ async function slashStake(base44, worker, task) {
       task_id: task.id,
       amount_usd: returnAmount,
       balance_type: 'available',
+      metadata: JSON.stringify({ milestone_id: milestoneId }),
       notes: `Partial stake return (${100 - slashPercentage}%) for task: ${task.title}`
     });
   }
 }
 
-async function transferPayment(base44, payerId, workerId, task) {
-  const taskPrice = task.task_price_usd || 0;
+async function transferPayment(base44, payerId, workerId, task, milestoneId = null) {
+  const taskPrice = task.task_price_usd || task.total_price || 0;
   if (taskPrice <= 0) return;
 
   const feePercentage = task.protocol_fee_percentage || 5;
   const feeAmount = (taskPrice * feePercentage) / 100;
   const workerAmount = taskPrice - feeAmount;
 
-  // Get payer
-  const payers = await base44.asServiceRole.entities.Worker.filter({ id: payerId });
-  if (!payers || payers.length === 0) return;
-  const payer = payers[0];
+  const payerLedger = await getOrCreateLedger(base44, payerId);
+  const workerLedger = await getOrCreateLedger(base44, workerId);
 
-  // Deduct from payer's available balance
-  await base44.asServiceRole.entities.Worker.update(payerId, {
-    available_balance_usd: Math.max(0, (payer.available_balance_usd || 0) - taskPrice)
+  await base44.asServiceRole.entities.Ledger.update(payerLedger.id, {
+    available_balance: Math.max(0, payerLedger.available_balance - taskPrice)
   });
 
-  // Credit worker
-  const workers = await base44.asServiceRole.entities.Worker.filter({ id: workerId });
-  if (workers && workers.length > 0) {
-    const worker = workers[0];
-    await base44.asServiceRole.entities.Worker.update(workerId, {
-      available_balance_usd: (worker.available_balance_usd || 0) + workerAmount,
-      total_earned_usd: (worker.total_earned_usd || 0) + workerAmount
-    });
-  }
+  await base44.asServiceRole.entities.Ledger.update(workerLedger.id, {
+    available_balance: workerLedger.available_balance + workerAmount,
+    total_earned: (workerLedger.total_earned || 0) + workerAmount
+  });
 
-  // Log transfer
   await base44.asServiceRole.entities.Transaction.create({
     transaction_type: 'transfer',
     worker_id: workerId,
@@ -225,10 +249,10 @@ async function transferPayment(base44, payerId, workerId, task) {
     to_worker_id: workerId,
     amount_usd: workerAmount,
     balance_type: 'available',
-    notes: `Payment for task: ${task.title}`
+    metadata: JSON.stringify({ milestone_id: milestoneId }),
+    notes: milestoneId ? `Milestone payment` : `Payment for task: ${task.title}`
   });
 
-  // Log fee
   if (feeAmount > 0) {
     await base44.asServiceRole.entities.Transaction.create({
       transaction_type: 'fee',
@@ -236,13 +260,15 @@ async function transferPayment(base44, payerId, workerId, task) {
       task_id: task.id,
       amount_usd: feeAmount,
       balance_type: 'available',
+      metadata: JSON.stringify({ milestone_id: milestoneId }),
       notes: `Protocol fee (${feePercentage}%) for task: ${task.title}`
     });
 
     await logEvent(base44, 'fee_collected', 'transaction', task.id, 'system', 'system', {
       task_id: task.id,
       amount_usd: feeAmount,
-      percentage: feePercentage
+      percentage: feePercentage,
+      milestone_id: milestoneId
     });
   }
 
@@ -250,7 +276,8 @@ async function transferPayment(base44, payerId, workerId, task) {
     from_worker_id: payerId,
     to_worker_id: workerId,
     task_id: task.id,
-    amount_usd: workerAmount
+    amount_usd: workerAmount,
+    milestone_id: milestoneId
   });
 }
 
@@ -364,6 +391,28 @@ Deno.serve(async (req) => {
         claimed_at: claimedAt
       });
       
+      // For milestone tasks, activate first milestone
+      if (task.task_type === 'longform' || task.task_type === 'milestone') {
+        const milestones = await base44.asServiceRole.entities.Milestone.filter({
+          task_id: task.id
+        });
+        
+        if (milestones && milestones.length > 0) {
+          milestones.sort((a, b) => a.order_index - b.order_index);
+          const firstMilestone = milestones[0];
+          
+          await base44.asServiceRole.entities.Milestone.update(firstMilestone.id, {
+            status: 'active',
+            activated_at: new Date().toISOString()
+          });
+          
+          await logEvent(base44, 'milestone_activated', 'milestone', firstMilestone.id, 'system', 'system', {
+            task_id: task.id,
+            order_index: firstMilestone.order_index
+          });
+        }
+      }
+      
       await logEvent(base44, 'task_claimed', 'task', task.id, 'worker', worker.id, { worker_name: worker.name });
       
       const claimExpiresAt = new Date(Date.now() + (task.claim_timeout_minutes || 30) * 60 * 1000);
@@ -371,6 +420,7 @@ Deno.serve(async (req) => {
       return successResponse({
         task_id: task.id,
         title: task.title,
+        task_type: task.task_type,
         input_data: task.input_data,
         requirements: task.requirements,
         output_schema: task.output_schema,
