@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 222 47% 4%;
+  --foreground: 213 31% 91%;
+  --card: 222 47% 6%;
+  --card-foreground: 213 31% 91%;
+  --popover: 222 47% 6%;
+  --popover-foreground: 213 31% 91%;
+  --primary: 36 100% 50%;
+  --primary-foreground: 222 47% 4%;
+  --secondary: 217 33% 15%;
+  --secondary-foreground: 213 31% 91%;
+  --muted: 217 33% 15%;
+  --muted-foreground: 215 20% 55%;
+  --accent: 217 33% 17%;
+  --accent-foreground: 213 31% 91%;
+  --destructive: 0 62% 50%;
+  --destructive-foreground: 213 31% 91%;
+  --border: 217 33% 17%;
+  --input: 217 33% 17%;
+  --ring: 36 100% 50%;
+  --radius: 0.5rem;
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-feature-settings: "liga" 1, "calt" 1;
+}
+
+/* Custom scrollbar for the terminal aesthetic */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(217 33% 10%);
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(217 33% 25%);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(217 33% 35%);
+}
+
+/* Monospace code styling */
+pre, code {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Menlo', monospace;
+}
+
+/* Subtle animations */
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Deep sea gradient overlays */
+.deep-gradient {
+  background: linear-gradient(
+    180deg,
+    hsl(222 47% 4%) 0%,
+    hsl(220 50% 6%) 50%,
+    hsl(218 45% 5%) 100%
+  );
+}
+
+/* Subtle grid pattern */
+.grid-pattern {
+  background-image: 
+    linear-gradient(hsl(217 33% 12%) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(217 33% 12%) 1px, transparent 1px);
+  background-size: 50px 50px;
+}
+
+/* Status indicator animations */
+.status-active::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: hsl(142 76% 45%);
+  border-radius: 50%;
+  margin-right: 6px;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Table row hover */
+.table-row-hover:hover {
+  background: hsl(217 33% 10%);
+}
+
+/* Focus states */
+*:focus-visible {
+  outline: 2px solid hsl(36 100% 50% / 0.5);
+  outline-offset: 2px;
+}
+
+/* Selection color */
+::selection {
+  background: hsl(36 100% 50% / 0.3);
+  color: hsl(36 100% 70%);
+}
