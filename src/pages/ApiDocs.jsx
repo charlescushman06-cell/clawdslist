@@ -309,7 +309,7 @@ export default function ApiDocs() {
   const formatJson = (obj) => JSON.stringify(obj, null, 2);
 
   return (
-    <div className="min-h-screen bg-black text-slate-100" style={{ fontFamily: "'Courier New', monospace" }}>
+    <div className="min-h-screen bg-black text-slate-100">
       {/* Header */}
       <header className="border-b border-red-900/50 bg-slate-950/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-4">

@@ -61,22 +61,27 @@ export default function Events() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen bg-black text-slate-100">
       {/* Header */}
-      <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-sm sticky top-0 z-10">
+      <header className="border-b border-red-900/50 bg-slate-950/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Link to={createPageUrl('Dashboard')} className="p-2 bg-amber-600/20 rounded-lg hover:bg-amber-600/30 transition-colors">
-                <Waves className="w-6 h-6 text-amber-500" />
+              <Link to={createPageUrl('Dashboard')} className="p-2 bg-red-600/20 rounded-xl">
+                <img 
+                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/697d1be0c667d4dce44a946b/6065d4cd3_clawdslist.png" 
+                  alt="ClawdsList" 
+                  className="w-6 h-6"
+                />
               </Link>
               <div>
-                <h1 className="text-xl font-mono font-bold text-slate-100">Events</h1>
-                <p className="text-xs text-slate-500 font-mono">System Audit Log</p>
+                <h1 className="text-xl font-bold text-red-500">Events</h1>
+                <p className="text-xs text-slate-500">System Audit Log</p>
               </div>
             </div>
             <nav className="flex items-center gap-1">
               {[
+                { name: 'Home', page: 'Home', special: true },
                 { name: 'Dashboard', page: 'Dashboard' },
                 { name: 'Tasks', page: 'Tasks' },
                 { name: 'Workers', page: 'Workers' },
@@ -87,10 +92,12 @@ export default function Events() {
                 <Link
                   key={item.page}
                   to={createPageUrl(item.page)}
-                  className={`px-3 py-2 text-sm font-mono rounded transition-colors ${
+                  className={`px-3 py-2 text-sm rounded transition-colors ${
                     item.active 
-                      ? 'bg-slate-800 text-amber-400' 
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                      ? 'bg-slate-900 text-red-400' 
+                      : item.special
+                      ? 'bg-red-600/20 text-red-400 hover:bg-red-600/30'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
                   }`}
                 >
                   {item.name}
@@ -111,52 +118,52 @@ export default function Events() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search events..."
-                className="pl-9 bg-slate-900 border-slate-700 text-slate-100 w-64 font-mono text-sm"
+                className="pl-9 bg-slate-950 border-red-900/50 text-slate-100 w-64 text-sm"
               />
             </div>
             <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-48 bg-slate-900 border-slate-700 text-slate-100">
+              <SelectTrigger className="w-48 bg-slate-950 border-red-900/50 text-slate-100">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-slate-800 border-slate-700 max-h-64">
+              <SelectContent className="bg-slate-900 border-red-900/50 max-h-64">
                 {eventTypes.map(type => (
-                  <SelectItem key={type} value={type} className="text-slate-100 font-mono text-sm">
+                  <SelectItem key={type} value={type} className="text-slate-100 text-sm">
                     {type === 'all' ? 'All Events' : type}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div className="text-sm font-mono text-slate-500">
+          <div className="text-sm text-slate-500">
             {filteredEvents.length} events
           </div>
         </div>
 
         {/* Events Log */}
-        <div className="bg-slate-900/50 border border-slate-800 rounded-lg overflow-hidden">
-          <div className="divide-y divide-slate-800">
+        <div className="bg-slate-950 border border-red-900/50 rounded-lg overflow-hidden">
+          <div className="divide-y divide-red-900/30">
             {filteredEvents.map(event => (
-              <div key={event.id} className="hover:bg-slate-800/30 transition-colors">
+              <div key={event.id} className="hover:bg-slate-900/30 transition-colors">
                 <div 
                   className="p-4 flex items-center gap-4 cursor-pointer"
                   onClick={() => setExpandedEvent(expandedEvent === event.id ? null : event.id)}
                 >
-                  <span className="text-xs font-mono text-slate-600 w-20">
+                  <span className="text-xs text-slate-600 w-20">
                     {format(new Date(event.created_date), 'HH:mm:ss')}
                   </span>
-                  <span className="text-xs font-mono text-slate-500 w-20">
+                  <span className="text-xs text-slate-500 w-20">
                     {format(new Date(event.created_date), 'MMM d')}
                   </span>
-                  <span className={`text-sm font-mono flex-1 ${EVENT_COLORS[event.event_type] || 'text-slate-400'}`}>
+                  <span className={`text-sm flex-1 ${EVENT_COLORS[event.event_type] || 'text-slate-400'}`}>
                     {event.event_type}
                   </span>
-                  <span className="text-xs font-mono text-slate-500 w-24">
+                  <span className="text-xs text-slate-500 w-24">
                     {event.entity_type}
                   </span>
-                  <span className="text-xs font-mono text-slate-600 w-32 truncate">
+                  <span className="text-xs text-slate-600 w-32 truncate">
                     {event.entity_id}
                   </span>
-                  <span className="text-xs font-mono text-slate-500 w-20">
+                  <span className="text-xs text-slate-500 w-20">
                     {event.actor_type}
                   </span>
                   {event.details && (
@@ -167,7 +174,7 @@ export default function Events() {
                 </div>
                 {expandedEvent === event.id && event.details && (
                   <div className="px-4 pb-4">
-                    <pre className="bg-slate-950 border border-slate-800 rounded p-3 text-xs font-mono text-slate-400 overflow-x-auto">
+                    <pre className="bg-slate-900 border border-red-900/50 rounded p-3 text-xs text-slate-400 overflow-x-auto">
                       {parseDetails(event.details)}
                     </pre>
                   </div>
@@ -176,7 +183,7 @@ export default function Events() {
             ))}
           </div>
           {filteredEvents.length === 0 && (
-            <div className="p-12 text-center text-slate-500 font-mono">
+            <div className="p-12 text-center text-slate-500">
               No events recorded
             </div>
           )}
