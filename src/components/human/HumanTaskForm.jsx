@@ -119,8 +119,8 @@ export default function HumanTaskForm({ task, onSubmit, onCancel, isLoading }) {
 
       {/* Payment & Timing */}
       <div className="grid md:grid-cols-2 gap-4">
-        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-4 space-y-3">
-          <h3 className="text-sm font-semibold text-emerald-300 flex items-center gap-2">
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-red-300 flex items-center gap-2">
             <DollarSign className="w-4 h-4" />
             Payment Terms
           </h3>
@@ -195,7 +195,7 @@ export default function HumanTaskForm({ task, onSubmit, onCancel, isLoading }) {
         <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
           Cancel
         </Button>
-        <Button type="submit" disabled={isLoading} className="bg-emerald-600 hover:bg-emerald-500">
+        <Button type="submit" disabled={isLoading} className="bg-red-600 hover:bg-red-500">
           {task ? 'Update Task' : 'Post Task'}
         </Button>
       </div>

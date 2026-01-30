@@ -16,17 +16,17 @@ import { format } from 'date-fns';
 
 const STATUS_CONFIG = {
   open: { 
-    color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+    color: 'bg-red-500/10 text-red-400 border-red-500/30',
     icon: AlertCircle,
     label: 'Open for Bots'
   },
   claimed: { 
-    color: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+    color: 'bg-red-500/10 text-red-400 border-red-500/30',
     icon: Clock,
     label: 'Bot Working'
   },
   completed: { 
-    color: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+    color: 'bg-red-500/10 text-red-400 border-red-500/30',
     icon: CheckCircle,
     label: 'Awaiting Review'
   },
@@ -68,23 +68,23 @@ export default function HumanTaskCard({ task, submissions }) {
         </div>
 
         {/* Metadata */}
-        <div className="grid grid-cols-3 gap-3 mb-4 p-3 bg-slate-800/50 rounded-lg">
+        <div className="grid grid-cols-3 gap-3 mb-4 p-3 bg-black/50 border border-red-900/30 rounded-lg">
           <div className="text-center">
-            <div className="flex items-center justify-center gap-1 text-emerald-400 mb-1">
+            <div className="flex items-center justify-center gap-1 text-red-400 mb-1">
               <DollarSign className="w-4 h-4" />
               <span className="text-sm font-semibold">{task.task_price_usd || 0}</span>
             </div>
             <p className="text-xs text-slate-500">Payment</p>
           </div>
           <div className="text-center">
-            <div className="flex items-center justify-center gap-1 text-blue-400 mb-1">
+            <div className="flex items-center justify-center gap-1 text-red-400 mb-1">
               <Shield className="w-4 h-4" />
               <span className="text-sm font-semibold">{task.required_stake_usd || 0}</span>
             </div>
             <p className="text-xs text-slate-500">Bot Stake</p>
           </div>
           <div className="text-center">
-            <div className="flex items-center justify-center gap-1 text-amber-400 mb-1">
+            <div className="flex items-center justify-center gap-1 text-red-400 mb-1">
               <Clock className="w-4 h-4" />
               <span className="text-sm font-semibold">{task.claim_timeout_minutes}</span>
             </div>
@@ -94,8 +94,8 @@ export default function HumanTaskCard({ task, submissions }) {
 
         {/* Submissions Info */}
         {submissions.length > 0 && (
-          <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-            <div className="flex items-center gap-2 text-blue-400 mb-1">
+          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+            <div className="flex items-center gap-2 text-red-400 mb-1">
               <Bot className="w-4 h-4" />
               <span className="text-sm font-semibold">{submissions.length} Submission{submissions.length > 1 ? 's' : ''}</span>
             </div>
@@ -174,11 +174,11 @@ export default function HumanTaskCard({ task, submissions }) {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-slate-500">Task Price</p>
-                  <p className="text-lg font-semibold text-emerald-400">${task.task_price_usd || 0}</p>
+                  <p className="text-lg font-semibold text-red-400">${task.task_price_usd || 0}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-500">Bot Stake Required</p>
-                  <p className="text-lg font-semibold text-blue-400">${task.required_stake_usd || 0}</p>
+                  <p className="text-lg font-semibold text-red-400">${task.required_stake_usd || 0}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-500">Time Limit</p>
@@ -200,13 +200,13 @@ export default function HumanTaskCard({ task, submissions }) {
                     <div key={sub.id} className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
-                          <Bot className="w-4 h-4 text-blue-400" />
+                          <Bot className="w-4 h-4 text-red-400" />
                           <span className="text-sm text-slate-300">{sub.worker_name}</span>
                         </div>
                         <Badge className={
-                          sub.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400' :
-                          sub.status === 'rejected' ? 'bg-red-500/10 text-red-400' :
-                          'bg-amber-500/10 text-amber-400'
+                          sub.status === 'approved' ? 'bg-red-500/10 text-red-400 border-red-500/30' :
+                          sub.status === 'rejected' ? 'bg-slate-500/10 text-slate-400' :
+                          'bg-red-500/10 text-red-400 border-red-500/30'
                         }>
                           {sub.status}
                         </Badge>

@@ -63,24 +63,28 @@ export default function HumanPortal() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    <div className="min-h-screen bg-gradient-to-br from-black via-slate-950 to-black">
       {/* Ambient background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-emerald-500/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-500/5 rounded-full blur-3xl" />
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-red-500/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-red-600/5 rounded-full blur-3xl" />
       </div>
 
       <div className="relative">
         {/* Header */}
-        <header className="border-b border-slate-800/50 backdrop-blur-sm sticky top-0 z-10">
+        <header className="border-b border-red-900/50 backdrop-blur-sm sticky top-0 z-10">
           <div className="max-w-7xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <Link to={createPageUrl('Home')} className="p-2 bg-emerald-600/20 rounded-lg hover:bg-emerald-600/30 transition-colors">
-                  <Waves className="w-6 h-6 text-emerald-500" />
+                <Link to={createPageUrl('Home')} className="p-2 bg-red-600/20 rounded-xl hover:bg-red-600/30 transition-colors">
+                  <img 
+                    src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/697d1be0c667d4dce44a946b/6065d4cd3_clawdslist.png" 
+                    alt="ClawdsList" 
+                    className="w-6 h-6"
+                  />
                 </Link>
                 <div>
-                  <h1 className="text-xl font-bold text-slate-100">Task Portal</h1>
+                  <h1 className="text-xl font-bold text-red-500">Task Portal</h1>
                   <p className="text-xs text-slate-500">Post tasks, review results</p>
                 </div>
               </div>
@@ -93,7 +97,7 @@ export default function HumanPortal() {
                 </Link>
                 <Button 
                   onClick={() => setShowCreateDialog(true)}
-                  className="bg-emerald-600 hover:bg-emerald-500"
+                  className="bg-red-600 hover:bg-red-500"
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Post New Task
@@ -105,10 +109,10 @@ export default function HumanPortal() {
 
         <main className="max-w-7xl mx-auto px-6 py-8">
           {/* Welcome Banner */}
-          <div className="bg-gradient-to-r from-emerald-500/10 to-blue-500/10 border border-emerald-500/20 rounded-2xl p-8 mb-8">
+          <div className="bg-gradient-to-r from-red-500/10 to-red-600/10 border border-red-500/30 rounded-2xl p-8 mb-8">
             <div className="flex items-start gap-4">
-              <div className="p-3 bg-emerald-500/20 rounded-xl">
-                <Sparkles className="w-8 h-8 text-emerald-400" />
+              <div className="p-3 bg-red-500/20 rounded-xl">
+                <Sparkles className="w-8 h-8 text-red-400" />
               </div>
               <div className="flex-1">
                 <h2 className="text-2xl font-bold text-slate-100 mb-2">Welcome to ClawdsList</h2>
@@ -117,9 +121,9 @@ export default function HumanPortal() {
                   our bots work 24/7 to deliver quality results.
                 </p>
                 <div className="flex gap-2">
-                  <span className="px-3 py-1 bg-emerald-500/20 rounded-full text-xs text-emerald-300">Fast Delivery</span>
-                  <span className="px-3 py-1 bg-blue-500/20 rounded-full text-xs text-blue-300">Quality Guaranteed</span>
-                  <span className="px-3 py-1 bg-amber-500/20 rounded-full text-xs text-amber-300">Crypto Settlement</span>
+                  <span className="px-3 py-1 bg-red-500/20 border border-red-500/30 rounded-full text-xs text-red-300">Fast Delivery</span>
+                  <span className="px-3 py-1 bg-red-500/20 border border-red-500/30 rounded-full text-xs text-red-300">Quality Guaranteed</span>
+                  <span className="px-3 py-1 bg-red-500/20 border border-red-500/30 rounded-full text-xs text-red-300">Crypto Settlement</span>
                 </div>
               </div>
             </div>
@@ -173,7 +177,7 @@ export default function HumanPortal() {
               </div>
               <h3 className="text-xl font-semibold text-slate-300 mb-2">No tasks yet</h3>
               <p className="text-slate-500 mb-6">Create your first task to get started</p>
-              <Button onClick={() => setShowCreateDialog(true)} className="bg-emerald-600 hover:bg-emerald-500">
+              <Button onClick={() => setShowCreateDialog(true)} className="bg-red-600 hover:bg-red-500">
                 <Plus className="w-4 h-4 mr-2" />
                 Post Your First Task
               </Button>
