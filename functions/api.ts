@@ -13,6 +13,7 @@ const ERROR_CODES = {
   INVALID_PAYLOAD: { code: 'E009', message: 'Invalid request payload', status: 400 },
   METHOD_NOT_ALLOWED: { code: 'E010', message: 'Method not allowed', status: 405 },
   RATE_LIMITED: { code: 'E011', message: 'Rate limit exceeded', status: 429 },
+  INSUFFICIENT_BALANCE: { code: 'E012', message: 'Insufficient balance for required stake', status: 402 },
   INTERNAL_ERROR: { code: 'E999', message: 'Internal server error', status: 500 }
 };
 
@@ -78,6 +79,176 @@ function calculateReputation(completed, rejected, expired) {
   const penaltyRate = (rejected * 2 + expired) / total;
   
   return Math.max(0, Math.min(100, Math.round(successRate * 100 - penaltyRate * 20)));
+}
+
+async function lockStake(base44, worker, task) {
+  const stakeRequired = task.required_stake_usd || 0;
+  if (stakeRequired <= 0) return { success: true };
+
+  const availableBalance = worker.available_balance_usd || 0;
+  if (availableBalance < stakeRequired) {
+    return { error: 'INSUFFICIENT_BALANCE', details: `Requires ${stakeRequired} USD stake, available: ${availableBalance} USD` };
+  }
+
+  // Lock funds atomically
+  await base44.asServiceRole.entities.Worker.update(worker.id, {
+    available_balance_usd: availableBalance - stakeRequired,
+    locked_balance_usd: (worker.locked_balance_usd || 0) + stakeRequired
+  });
+
+  // Log transaction
+  await base44.asServiceRole.entities.Transaction.create({
+    transaction_type: 'lock',
+    worker_id: worker.id,
+    task_id: task.id,
+    amount_usd: stakeRequired,
+    balance_type: 'locked',
+    notes: `Stake locked for task: ${task.title}`
+  });
+
+  await logEvent(base44, 'funds_locked', 'transaction', task.id, 'system', 'system', {
+    worker_id: worker.id,
+    task_id: task.id,
+    amount_usd: stakeRequired
+  });
+
+  return { success: true };
+}
+
+async function unlockStake(base44, worker, task) {
+  const stakeAmount = task.required_stake_usd || 0;
+  if (stakeAmount <= 0) return;
+
+  await base44.asServiceRole.entities.Worker.update(worker.id, {
+    available_balance_usd: (worker.available_balance_usd || 0) + stakeAmount,
+    locked_balance_usd: Math.max(0, (worker.locked_balance_usd || 0) - stakeAmount)
+  });
+
+  await base44.asServiceRole.entities.Transaction.create({
+    transaction_type: 'unlock',
+    worker_id: worker.id,
+    task_id: task.id,
+    amount_usd: stakeAmount,
+    balance_type: 'available',
+    notes: `Stake unlocked for task: ${task.title}`
+  });
+
+  await logEvent(base44, 'funds_unlocked', 'transaction', task.id, 'system', 'system', {
+    worker_id: worker.id,
+    task_id: task.id,
+    amount_usd: stakeAmount
+  });
+}
+
+async function slashStake(base44, worker, task) {
+  const stakeAmount = task.required_stake_usd || 0;
+  if (stakeAmount <= 0) return;
+
+  const slashPercentage = task.slash_percentage || 100;
+  const slashAmount = (stakeAmount * slashPercentage) / 100;
+  const returnAmount = stakeAmount - slashAmount;
+
+  // Slash locked funds
+  await base44.asServiceRole.entities.Worker.update(worker.id, {
+    locked_balance_usd: Math.max(0, (worker.locked_balance_usd || 0) - stakeAmount),
+    available_balance_usd: (worker.available_balance_usd || 0) + returnAmount,
+    total_slashed_usd: (worker.total_slashed_usd || 0) + slashAmount
+  });
+
+  if (slashAmount > 0) {
+    await base44.asServiceRole.entities.Transaction.create({
+      transaction_type: 'slash',
+      worker_id: worker.id,
+      task_id: task.id,
+      amount_usd: slashAmount,
+      balance_type: 'locked',
+      notes: `Stake slashed (${slashPercentage}%) for task: ${task.title}`
+    });
+
+    await logEvent(base44, 'funds_slashed', 'transaction', task.id, 'system', 'system', {
+      worker_id: worker.id,
+      task_id: task.id,
+      amount_usd: slashAmount,
+      percentage: slashPercentage
+    });
+  }
+
+  if (returnAmount > 0) {
+    await base44.asServiceRole.entities.Transaction.create({
+      transaction_type: 'unlock',
+      worker_id: worker.id,
+      task_id: task.id,
+      amount_usd: returnAmount,
+      balance_type: 'available',
+      notes: `Partial stake return (${100 - slashPercentage}%) for task: ${task.title}`
+    });
+  }
+}
+
+async function transferPayment(base44, payerId, workerId, task) {
+  const taskPrice = task.task_price_usd || 0;
+  if (taskPrice <= 0) return;
+
+  const feePercentage = task.protocol_fee_percentage || 5;
+  const feeAmount = (taskPrice * feePercentage) / 100;
+  const workerAmount = taskPrice - feeAmount;
+
+  // Get payer
+  const payers = await base44.asServiceRole.entities.Worker.filter({ id: payerId });
+  if (!payers || payers.length === 0) return;
+  const payer = payers[0];
+
+  // Deduct from payer's available balance
+  await base44.asServiceRole.entities.Worker.update(payerId, {
+    available_balance_usd: Math.max(0, (payer.available_balance_usd || 0) - taskPrice)
+  });
+
+  // Credit worker
+  const workers = await base44.asServiceRole.entities.Worker.filter({ id: workerId });
+  if (workers && workers.length > 0) {
+    const worker = workers[0];
+    await base44.asServiceRole.entities.Worker.update(workerId, {
+      available_balance_usd: (worker.available_balance_usd || 0) + workerAmount,
+      total_earned_usd: (worker.total_earned_usd || 0) + workerAmount
+    });
+  }
+
+  // Log transfer
+  await base44.asServiceRole.entities.Transaction.create({
+    transaction_type: 'transfer',
+    worker_id: workerId,
+    task_id: task.id,
+    from_worker_id: payerId,
+    to_worker_id: workerId,
+    amount_usd: workerAmount,
+    balance_type: 'available',
+    notes: `Payment for task: ${task.title}`
+  });
+
+  // Log fee
+  if (feeAmount > 0) {
+    await base44.asServiceRole.entities.Transaction.create({
+      transaction_type: 'fee',
+      worker_id: payerId,
+      task_id: task.id,
+      amount_usd: feeAmount,
+      balance_type: 'available',
+      notes: `Protocol fee (${feePercentage}%) for task: ${task.title}`
+    });
+
+    await logEvent(base44, 'fee_collected', 'transaction', task.id, 'system', 'system', {
+      task_id: task.id,
+      amount_usd: feeAmount,
+      percentage: feePercentage
+    });
+  }
+
+  await logEvent(base44, 'funds_transferred', 'transaction', task.id, 'system', 'system', {
+    from_worker_id: payerId,
+    to_worker_id: workerId,
+    task_id: task.id,
+    amount_usd: workerAmount
+  });
 }
 
 Deno.serve(async (req) => {
@@ -176,6 +347,12 @@ Deno.serve(async (req) => {
         return errorResponse('TASK_NOT_OPEN', 'Task deadline has passed');
       }
       
+      // Lock stake if required
+      const stakeLock = await lockStake(base44, worker, task);
+      if (stakeLock.error) {
+        return errorResponse(stakeLock.error, stakeLock.details);
+      }
+      
       // Claim the task
       const claimedAt = new Date().toISOString();
       await base44.asServiceRole.entities.Task.update(task.id, {
@@ -210,6 +387,9 @@ Deno.serve(async (req) => {
       
       if (task.claimed_by !== worker.id) return errorResponse('TASK_NOT_CLAIMED');
       
+      // Unlock stake
+      await unlockStake(base44, worker, task);
+      
       await base44.asServiceRole.entities.Task.update(task.id, {
         status: 'open',
         claimed_by: null,
@@ -237,6 +417,9 @@ Deno.serve(async (req) => {
       if (task.claimed_at) {
         const claimExpiry = new Date(new Date(task.claimed_at).getTime() + (task.claim_timeout_minutes || 30) * 60 * 1000);
         if (new Date() > claimExpiry) {
+          // Slash stake on expiration
+          await slashStake(base44, worker, task);
+          
           await base44.asServiceRole.entities.Task.update(task.id, {
             status: 'open',
             claimed_by: null,
