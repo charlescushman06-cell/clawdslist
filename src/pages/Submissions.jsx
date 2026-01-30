@@ -62,8 +62,104 @@ export default function Submissions() {
           if (status === 'approved') {
             updates.tasks_completed = (worker.tasks_completed || 0) + 1;
             updates.total_credits_earned = (worker.total_credits_earned || 0) + (task?.reward_credits || 0);
+            
+            // Unlock stake on approval
+            const stakeAmount = task?.required_stake_usd || 0;
+            if (stakeAmount > 0) {
+              updates.locked_balance_usd = Math.max(0, (worker.locked_balance_usd || 0) - stakeAmount);
+              updates.available_balance_usd = (worker.available_balance_usd || 0) + stakeAmount;
+              
+              // Log unlock transaction
+              await base44.entities.Transaction.create({
+                transaction_type: 'unlock',
+                worker_id: worker.id,
+                task_id: task.id,
+                amount_usd: stakeAmount,
+                balance_type: 'available',
+                notes: `Stake unlocked on task approval: ${task.title}`
+              });
+            }
+            
+            // Transfer payment from payer if task has price
+            if (task?.task_price_usd && task?.payer_id) {
+              const taskPrice = task.task_price_usd;
+              const feePercentage = task.protocol_fee_percentage || 5;
+              const feeAmount = (taskPrice * feePercentage) / 100;
+              const workerAmount = taskPrice - feeAmount;
+              
+              // Deduct from payer
+              const payers = workers.filter(w => w.id === task.payer_id);
+              if (payers.length > 0) {
+                const payer = payers[0];
+                await base44.entities.Worker.update(payer.id, {
+                  available_balance_usd: Math.max(0, (payer.available_balance_usd || 0) - taskPrice)
+                });
+                
+                // Credit worker
+                updates.available_balance_usd = (worker.available_balance_usd || 0) + workerAmount;
+                updates.total_earned_usd = (worker.total_earned_usd || 0) + workerAmount;
+                
+                // Log transfer
+                await base44.entities.Transaction.create({
+                  transaction_type: 'transfer',
+                  worker_id: worker.id,
+                  task_id: task.id,
+                  from_worker_id: payer.id,
+                  to_worker_id: worker.id,
+                  amount_usd: workerAmount,
+                  balance_type: 'available',
+                  notes: `Payment for task: ${task.title}`
+                });
+                
+                // Log fee
+                if (feeAmount > 0) {
+                  await base44.entities.Transaction.create({
+                    transaction_type: 'fee',
+                    worker_id: payer.id,
+                    task_id: task.id,
+                    amount_usd: feeAmount,
+                    balance_type: 'available',
+                    notes: `Protocol fee (${feePercentage}%) for task: ${task.title}`
+                  });
+                }
+              }
+            }
           } else if (status === 'rejected') {
             updates.tasks_rejected = (worker.tasks_rejected || 0) + 1;
+            
+            // Slash stake on rejection
+            const stakeAmount = task?.required_stake_usd || 0;
+            if (stakeAmount > 0) {
+              const slashPercentage = task?.slash_percentage || 100;
+              const slashAmount = (stakeAmount * slashPercentage) / 100;
+              const returnAmount = stakeAmount - slashAmount;
+              
+              updates.locked_balance_usd = Math.max(0, (worker.locked_balance_usd || 0) - stakeAmount);
+              updates.available_balance_usd = (worker.available_balance_usd || 0) + returnAmount;
+              updates.total_slashed_usd = (worker.total_slashed_usd || 0) + slashAmount;
+              
+              if (slashAmount > 0) {
+                await base44.entities.Transaction.create({
+                  transaction_type: 'slash',
+                  worker_id: worker.id,
+                  task_id: task.id,
+                  amount_usd: slashAmount,
+                  balance_type: 'locked',
+                  notes: `Stake slashed for rejected submission: ${task.title}`
+                });
+              }
+              
+              if (returnAmount > 0) {
+                await base44.entities.Transaction.create({
+                  transaction_type: 'unlock',
+                  worker_id: worker.id,
+                  task_id: task.id,
+                  amount_usd: returnAmount,
+                  balance_type: 'available',
+                  notes: `Partial stake return for rejected submission: ${task.title}`
+                });
+              }
+            }
           }
 
           // Recalculate reputation
