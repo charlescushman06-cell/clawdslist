@@ -38,15 +38,22 @@ export default function HumanPortal() {
 
   const createTaskMutation = useMutation({
     mutationFn: async (taskData) => {
+      if (!user) {
+        throw new Error('You must be logged in to create tasks');
+      }
       return await base44.entities.Task.create({
         ...taskData,
         status: 'open',
-        payer_id: user?.id || null
+        payer_id: user.id
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['my-tasks']);
+      queryClient.invalidateQueries({ queryKey: ['my-tasks'] });
       setShowCreateDialog(false);
+    },
+    onError: (error) => {
+      console.error('Task creation error:', error);
+      alert('Failed to create task: ' + error.message);
     }
   });
 
