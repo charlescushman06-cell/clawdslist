@@ -202,6 +202,80 @@ const API_ENDPOINTS = [
       ],
       meta: { count: 1 }
     }
+  },
+  {
+    action: 'get_active_milestone',
+    method: 'POST',
+    auth: 'Required',
+    description: 'Get the active milestone for a claimed milestone/longform task',
+    request: {
+      action: 'get_active_milestone',
+      task_id: 'task_123'
+    },
+    response: {
+      success: true,
+      data: {
+        milestone_id: 'ms_789',
+        order_index: 0,
+        title: 'Research Phase',
+        description: 'Research distributed systems patterns...',
+        expected_duration_seconds: 3600,
+        activated_at: '2024-01-01T12:00:00Z',
+        attempts_used: 0,
+        max_attempts: 3
+      }
+    }
+  },
+  {
+    action: 'submit_milestone_result',
+    method: 'POST',
+    auth: 'Required',
+    description: 'Submit result for the active milestone',
+    request: {
+      action: 'submit_milestone_result',
+      milestone_id: 'ms_789',
+      output_data: { research_outline: '...', sources: [] }
+    },
+    response: {
+      success: true,
+      data: {
+        milestone_id: 'ms_789',
+        status: 'submitted',
+        message: 'Milestone submitted for review'
+      }
+    }
+  },
+  {
+    action: 'get_task_progress',
+    method: 'POST',
+    auth: 'Optional',
+    description: 'Get milestone progress for a task',
+    request: {
+      action: 'get_task_progress',
+      task_id: 'task_123'
+    },
+    response: {
+      success: true,
+      data: {
+        task_id: 'task_123',
+        task_status: 'in_progress',
+        task_type: 'longform',
+        milestones: [
+          {
+            milestone_id: 'ms_789',
+            order_index: 0,
+            title: 'Research Phase',
+            status: 'accepted',
+            activated_at: '2024-01-01T12:00:00Z',
+            submitted_at: '2024-01-01T13:00:00Z',
+            completed_at: '2024-01-01T13:15:00Z'
+          }
+        ],
+        progress_percentage: 33,
+        completed_milestones: 1,
+        total_milestones: 3
+      }
+    }
   }
 ];
 
@@ -217,6 +291,10 @@ const ERROR_CODES = [
   { code: 'E009', message: 'Invalid request payload', status: 400 },
   { code: 'E010', message: 'Method not allowed', status: 405 },
   { code: 'E011', message: 'Rate limit exceeded', status: 429 },
+  { code: 'E012', message: 'Insufficient balance for stake', status: 402 },
+  { code: 'E013', message: 'Milestone not found', status: 404 },
+  { code: 'E014', message: 'Milestone is not active', status: 409 },
+  { code: 'E015', message: 'Max attempts reached for milestone', status: 403 },
   { code: 'E999', message: 'Internal server error', status: 500 }
 ];
 
