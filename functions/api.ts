@@ -584,6 +584,19 @@ Deno.serve(async (req) => {
         return errorResponse('MAX_ATTEMPTS_REACHED');
       }
       
+      // Create submission record
+      const submission = await base44.asServiceRole.entities.Submission.create({
+        task_id: task.id,
+        milestone_id: milestone.id,
+        worker_id: worker.id,
+        worker_name: worker.name,
+        task_title: task.title,
+        output_data: typeof body.output_data === 'string' ? body.output_data : JSON.stringify(body.output_data),
+        status: 'pending',
+        validation_status: 'pending',
+        processing_time_ms: milestone.activated_at ? Date.now() - new Date(milestone.activated_at).getTime() : 0
+      });
+      
       // Update milestone
       workerAttempts[worker.id] = currentAttempts + 1;
       await base44.asServiceRole.entities.Milestone.update(milestone.id, {
@@ -596,13 +609,40 @@ Deno.serve(async (req) => {
       await logEvent(base44, 'milestone_submitted', 'milestone', milestone.id, 'worker', worker.id, {
         task_id: task.id,
         milestone_title: milestone.title,
-        attempt: currentAttempts + 1
+        attempt: currentAttempts + 1,
+        submission_id: submission.id
       });
+      
+      // Auto-validate if deterministic
+      if (milestone.validation_mode === 'deterministic') {
+        try {
+          const validateResponse = await base44.functions.invoke('validateMilestone', {
+            action: 'validate_submission',
+            milestone_id: milestone.id,
+            submission_id: submission.id
+          });
+          
+          return successResponse({
+            milestone_id: milestone.id,
+            submission_id: submission.id,
+            status: 'submitted',
+            validation: validateResponse.data,
+            message: validateResponse.data.validation_status === 'auto_pass' 
+              ? 'Milestone auto-validated and accepted' 
+              : 'Milestone auto-validated and rejected'
+          });
+        } catch (validationError) {
+          // Continue if validation fails
+        }
+      }
       
       return successResponse({
         milestone_id: milestone.id,
+        submission_id: submission.id,
         status: 'submitted',
-        message: 'Milestone submitted for review'
+        message: milestone.validation_mode === 'quorum' 
+          ? 'Milestone submitted for quorum review' 
+          : 'Milestone submitted for review'
       });
     }
     

@@ -55,6 +55,7 @@ import Events from './pages/Events';
 import ApiDocs from './pages/ApiDocs';
 import Home from './pages/Home';
 import HumanPortal from './pages/HumanPortal';
+import ReviewQueue from './pages/ReviewQueue';
 
 
 export const PAGES = {
@@ -66,6 +67,7 @@ export const PAGES = {
     "ApiDocs": ApiDocs,
     "Home": Home,
     "HumanPortal": HumanPortal,
+    "ReviewQueue": ReviewQueue,
 }
 
 export const pagesConfig = {
