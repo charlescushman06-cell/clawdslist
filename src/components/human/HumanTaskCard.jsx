@@ -46,7 +46,23 @@ const STATUS_CONFIG = {
 export default function HumanTaskCard({ task, submissions }) {
   const [showDetails, setShowDetails] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(null);
-  const statusConfig = STATUS_CONFIG[task.status] || STATUS_CONFIG.open;
+  
+  // Determine if task is effectively expired (claim timeout or deadline passed)
+  const isEffectivelyExpired = (() => {
+    const now = new Date();
+    if (task.status === 'expired') return true;
+    if (task.status === 'claimed' && task.claimed_at) {
+      const claimExpiry = new Date(new Date(task.claimed_at).getTime() + (task.claim_timeout_minutes || 30) * 60 * 1000);
+      if (now > claimExpiry) return true;
+    }
+    if (task.status === 'open' && task.expires_at && now > new Date(task.expires_at)) return true;
+    if (task.status === 'open' && task.deadline && now > new Date(task.deadline)) return true;
+    return false;
+  })();
+  
+  // Use expired status config if effectively expired
+  const effectiveStatus = isEffectivelyExpired ? 'expired' : task.status;
+  const statusConfig = STATUS_CONFIG[effectiveStatus] || STATUS_CONFIG.open;
   const StatusIcon = statusConfig.icon;
 
   // Calculate time remaining for claimed tasks or deadline for open tasks
