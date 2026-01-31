@@ -541,7 +541,8 @@ export default function ApiDocs() {
               {[
                 { name: 'Home', page: 'Home', special: true },
                 { name: 'Dashboard', page: 'Dashboard' },
-                { name: 'API Docs', page: 'ApiDocs', active: true }
+                { name: 'API Docs', page: 'ApiDocs', active: true },
+                { name: 'Settings', page: 'Settings' }
               ].map(item => (
                 <Link
                   key={item.page}
