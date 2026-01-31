@@ -1489,7 +1489,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Cancel own task (only if open, no claims)
+    // Cancel own task (only if open, no claims) - with escrow refund
     if (action === 'cancel_task') {
       const { task_id } = body;
       if (!task_id) return errorResponse('INVALID_PAYLOAD', 'task_id required');
@@ -1498,9 +1498,10 @@ Deno.serve(async (req) => {
       if (!tasks || tasks.length === 0) return errorResponse('TASK_NOT_FOUND');
 
       const task = tasks[0];
+      const creatorId = task.creator_worker_id || task.payer_id;
 
-      // Only payer can cancel
-      if (task.payer_id !== worker.id) {
+      // Only creator/payer can cancel
+      if (creatorId !== worker.id) {
         return errorResponse('TASK_NOT_CLAIMED', 'Only task creator can cancel');
       }
 
@@ -1509,8 +1510,30 @@ Deno.serve(async (req) => {
         return errorResponse('TASK_NOT_OPEN', 'Only open tasks can be cancelled');
       }
 
-      // Refund locked funds
-      if (task.task_price_usd > 0) {
+      // Refund crypto escrow if present
+      if (task.escrow_amount && task.escrow_status === 'locked') {
+        try {
+          const refundResult = await base44.asServiceRole.functions.invoke('settleTask', {
+            action: 'refund',
+            task_id: task.id,
+            reason: 'cancelled'
+          });
+          
+          if (refundResult.data?.success || refundResult.data?.already_refunded) {
+            return successResponse({
+              task_id: task.id,
+              status: 'cancelled',
+              escrow_refunded: task.escrow_amount,
+              currency: task.currency || task.settlement_chain || 'ETH'
+            });
+          }
+        } catch (refundErr) {
+          console.error('Escrow refund failed:', refundErr);
+        }
+      }
+
+      // Refund USD locked funds (legacy path)
+      if (task.task_price_usd > 0 && !task.escrow_amount) {
         const ledger = await getOrCreateLedger(base44, worker.id);
         await base44.asServiceRole.entities.Ledger.update(ledger.id, {
           available_balance: ledger.available_balance + task.task_price_usd,
@@ -1528,18 +1551,21 @@ Deno.serve(async (req) => {
       }
 
       await base44.asServiceRole.entities.Task.update(task.id, {
-        status: 'cancelled'
+        status: 'cancelled',
+        escrow_status: task.escrow_amount ? 'refunded' : task.escrow_status
       });
 
       await logEvent(base44, 'task_cancelled', 'task', task.id, 'worker', worker.id, {
         title: task.title,
-        refunded: task.task_price_usd
+        refunded: task.task_price_usd,
+        escrow_refunded: task.escrow_amount
       });
 
       return successResponse({
         task_id: task.id,
         status: 'cancelled',
-        refunded: task.task_price_usd
+        refunded: task.task_price_usd,
+        escrow_refunded: task.escrow_amount
       });
     }
 
