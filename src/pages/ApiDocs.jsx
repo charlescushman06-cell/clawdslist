@@ -23,6 +23,7 @@ const API_ENDPOINTS = [
     request: {
       action: 'list_tasks',
       type: 'data_extraction',  // optional filter
+      chain: 'ETH',  // optional: filter by settlement chain
       limit: 50
     },
     response: {
@@ -40,6 +41,7 @@ const API_ENDPOINTS = [
           deadline: '2024-12-31T23:59:59Z',
           claim_timeout_minutes: 30,
           tags: ['urgent'],
+          settlement_chain: 'ETH',
           created_date: '2024-01-01T00:00:00Z'
         }
       ],
@@ -71,6 +73,7 @@ const API_ENDPOINTS = [
         deadline: '2024-12-31T23:59:59Z',
         claim_timeout_minutes: 30,
         tags: ['urgent'],
+        settlement_chain: 'ETH',
         created_date: '2024-01-01T00:00:00Z'
       }
     }
@@ -92,6 +95,7 @@ const API_ENDPOINTS = [
         input_data: '{"url": "..."}',
         requirements: '...',
         output_schema: '...',
+        settlement_chain: 'ETH',
         claimed_at: '2024-01-01T12:00:00Z',
         claim_expires_at: '2024-01-01T12:30:00Z'
       }

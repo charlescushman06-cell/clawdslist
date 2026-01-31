@@ -106,6 +106,17 @@ async function debitAccount(base44, account, amount) {
   return newBalance;
 }
 
+// ============ CHAIN VALIDATION ============
+const SUPPORTED_CHAINS = ['ETH', 'BTC'];
+
+function validateChain(chain) {
+  if (!chain) return 'ETH';
+  if (!SUPPORTED_CHAINS.includes(chain)) {
+    throw new Error(`Unsupported chain: ${chain}. Supported: ${SUPPORTED_CHAINS.join(', ')}`);
+  }
+  return chain;
+}
+
 // ============ SETTLEMENT LOGIC ============
 async function settleTaskPayment(base44, params) {
   const {
@@ -115,9 +126,11 @@ async function settleTaskPayment(base44, params) {
     payer_id,
     worker_id,
     gross_amount,
-    chain,
     protocol_fee_rate_bps
   } = params;
+  
+  // Validate and resolve chain
+  const chain = validateChain(params.chain);
   
   // Generate settlement ID for idempotency
   const settlementId = milestone_id 
@@ -139,6 +152,20 @@ async function settleTaskPayment(base44, params) {
   const feeRateBps = protocol_fee_rate_bps ?? DEFAULT_PROTOCOL_FEE_RATE_BPS;
   const feeAmount = multiplyBps(gross_amount, feeRateBps);
   const netAmount = subtractDecimal(gross_amount, feeAmount);
+  
+  // Emit settlement_chain_resolved event
+  await base44.asServiceRole.entities.Event.create({
+    event_type: 'funds_locked',
+    entity_type: 'task',
+    entity_id: task_id,
+    actor_type: 'system',
+    actor_id: 'settlement',
+    details: JSON.stringify({
+      stage: 'settlement_chain_resolved',
+      chain,
+      settlement_id: settlementId
+    })
+  });
   
   // Get accounts
   const payerAccount = await getOrCreateWorkerLedgerAccount(base44, payer_id, chain);
@@ -265,7 +292,8 @@ async function settleTaskPayment(base44, params) {
 }
 
 async function lockStake(base44, params) {
-  const { worker_id, task_id, milestone_id, amount, chain } = params;
+  const { worker_id, task_id, milestone_id, amount } = params;
+  const chain = validateChain(params.chain);
   
   const account = await getOrCreateWorkerLedgerAccount(base44, worker_id, chain);
   
@@ -293,7 +321,8 @@ async function lockStake(base44, params) {
 }
 
 async function unlockStake(base44, params) {
-  const { worker_id, task_id, milestone_id, amount, chain } = params;
+  const { worker_id, task_id, milestone_id, amount } = params;
+  const chain = validateChain(params.chain);
   
   const account = await getOrCreateWorkerLedgerAccount(base44, worker_id, chain);
   
@@ -321,7 +350,8 @@ async function unlockStake(base44, params) {
 }
 
 async function slashStake(base44, params) {
-  const { worker_id, task_id, milestone_id, amount, chain, slash_percentage = 100 } = params;
+  const { worker_id, task_id, milestone_id, amount, slash_percentage = 100 } = params;
+  const chain = validateChain(params.chain);
   
   const account = await getOrCreateWorkerLedgerAccount(base44, worker_id, chain);
   const protocolAccount = await getProtocolLedgerAccount(base44, chain);

@@ -16,6 +16,11 @@ const TASK_TYPES = [
   { value: 'other', label: 'Other' }
 ];
 
+const CHAIN_OPTIONS = [
+  { value: 'ETH', label: 'Ethereum (ETH)' },
+  { value: 'BTC', label: 'Bitcoin (BTC)' }
+];
+
 export default function TaskForm({ task, onSubmit, onCancel }) {
   const [formData, setFormData] = useState(task || {
     title: '',
@@ -28,7 +33,8 @@ export default function TaskForm({ task, onSubmit, onCancel }) {
     reward_credits: 0,
     claim_timeout_minutes: 30,
     deadline: '',
-    tags: []
+    tags: [],
+    settlement_chain: 'ETH'
   });
   const [tagInput, setTagInput] = useState('');
 
@@ -50,7 +56,7 @@ export default function TaskForm({ task, onSubmit, onCancel }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
           <Label className="text-slate-400 text-xs uppercase tracking-wider">Title</Label>
           <Input
@@ -70,6 +76,19 @@ export default function TaskForm({ task, onSubmit, onCancel }) {
             <SelectContent className="bg-slate-800 border-slate-700">
               {TASK_TYPES.map(t => (
                 <SelectItem key={t.value} value={t.value} className="text-slate-100">{t.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label className="text-slate-400 text-xs uppercase tracking-wider">Settlement Chain</Label>
+          <Select value={formData.settlement_chain || 'ETH'} onValueChange={(v) => setFormData({ ...formData, settlement_chain: v })}>
+            <SelectTrigger className="bg-slate-900 border-slate-700 text-slate-100">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-800 border-slate-700">
+              {CHAIN_OPTIONS.map(c => (
+                <SelectItem key={c.value} value={c.value} className="text-slate-100">{c.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>

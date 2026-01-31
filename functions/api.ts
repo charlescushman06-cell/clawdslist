@@ -304,13 +304,14 @@ Deno.serve(async (req) => {
     if (action === 'list_tasks') {
       const filters = { status: 'open' };
       if (body.type) filters.type = body.type;
-      
+      if (body.chain) filters.settlement_chain = body.chain;
+
       const tasks = await base44.asServiceRole.entities.Task.filter(filters, '-priority', body.limit || 50);
-      
+
       // Filter out expired tasks
       const now = new Date();
       const activeTasks = tasks.filter(t => !t.deadline || new Date(t.deadline) > now);
-      
+
       return successResponse(activeTasks.map(t => ({
         id: t.id,
         title: t.title,
@@ -323,6 +324,7 @@ Deno.serve(async (req) => {
         deadline: t.deadline,
         claim_timeout_minutes: t.claim_timeout_minutes,
         tags: t.tags,
+        settlement_chain: t.settlement_chain || 'ETH',
         created_date: t.created_date
       })), { count: activeTasks.length });
     }
@@ -330,10 +332,10 @@ Deno.serve(async (req) => {
     // Get single task details
     if (action === 'get_task') {
       if (!body.task_id) return errorResponse('INVALID_PAYLOAD', 'task_id required');
-      
+
       const tasks = await base44.asServiceRole.entities.Task.filter({ id: body.task_id });
       if (!tasks || tasks.length === 0) return errorResponse('TASK_NOT_FOUND');
-      
+
       const task = tasks[0];
       return successResponse({
         id: task.id,
@@ -349,6 +351,7 @@ Deno.serve(async (req) => {
         deadline: task.deadline,
         claim_timeout_minutes: task.claim_timeout_minutes,
         tags: task.tags,
+        settlement_chain: task.settlement_chain || 'ETH',
         created_date: task.created_date
       });
     }
@@ -424,10 +427,11 @@ Deno.serve(async (req) => {
         input_data: task.input_data,
         requirements: task.requirements,
         output_schema: task.output_schema,
+        settlement_chain: task.settlement_chain || 'ETH',
         claimed_at: claimedAt,
         claim_expires_at: claimExpiresAt.toISOString()
       });
-    }
+      }
     
     // Release a claim
     if (action === 'release_claim') {

@@ -224,6 +224,7 @@ export default function Tasks() {
               <tr className="border-b border-red-900/30 bg-slate-950">
                 <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Title</th>
                 <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Type</th>
+                <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Chain</th>
                 <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Status</th>
                 <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Priority</th>
                 <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Reward</th>
@@ -242,6 +243,15 @@ export default function Tasks() {
                   </td>
                   <td className="p-4">
                     <span className="text-xs text-slate-400">{task.type}</span>
+                  </td>
+                  <td className="p-4">
+                    <span className={`px-2 py-1 text-xs rounded ${
+                      task.settlement_chain === 'BTC' 
+                        ? 'bg-amber-900/30 text-amber-400' 
+                        : 'bg-blue-900/30 text-blue-400'
+                    }`}>
+                      {task.settlement_chain || 'ETH'}
+                    </span>
                   </td>
                   <td className="p-4">
                     <StatusBadge status={task.status} />
