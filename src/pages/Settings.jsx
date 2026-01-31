@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import WithdrawalControls from '@/components/admin/WithdrawalControls';
+import DepositMasterSetup from '@/components/admin/DepositMasterSetup';
 
 export default function Settings() {
   const queryClient = useQueryClient();
@@ -203,6 +204,11 @@ export default function Settings() {
       <main className="max-w-3xl mx-auto px-6 py-8">
         {/* Withdrawal Controls */}
         <WithdrawalControls />
+
+        {/* Deposit Master Setup */}
+        <div className="mt-6">
+          <DepositMasterSetup />
+        </div>
 
         {/* Treasury Section */}
         <div className="mt-6 bg-slate-950 border border-red-900/50 rounded-lg">
