@@ -863,17 +863,21 @@ Deno.serve(async (req) => {
       }
 
       // Config check
-      const TATUM_API_KEY = Deno.env.get('TATUM_API_KEY_MAINNET') || Deno.env.get('TATUM_API_KEY');
+      const TATUM_API_KEY = Deno.env.get('TATUM_API_KEY_MAINNET');
       const TATUM_TESTNET = Deno.env.get('TATUM_TESTNET') === 'true';
       const DEPOSIT_MASTER_XPUB = chain === 'ETH' 
         ? Deno.env.get('DEPOSIT_MASTER_XPUB_ETH') 
         : Deno.env.get('DEPOSIT_MASTER_XPUB_BTC');
 
+      console.log(`[generate_deposit_address] chain=${chain}, TATUM_API_KEY set=${!!TATUM_API_KEY}, DEPOSIT_MASTER_XPUB set=${!!DEPOSIT_MASTER_XPUB}`);
+
       if (!TATUM_API_KEY) {
+        console.error('[generate_deposit_address] Missing TATUM_API_KEY_MAINNET');
         return errorResponse('INTERNAL_ERROR', 'TATUM_API_KEY_MAINNET not configured');
       }
 
       if (!DEPOSIT_MASTER_XPUB) {
+        console.error(`[generate_deposit_address] Missing DEPOSIT_MASTER_XPUB_${chain}`);
         return errorResponse('INTERNAL_ERROR', `DEPOSIT_MASTER_XPUB_${chain} not configured. Initialize via Settings > Deposit Master Setup.`);
       }
 
