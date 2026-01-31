@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -10,7 +10,8 @@ import {
   CheckCircle, 
   XCircle,
   AlertCircle,
-  Bot
+  Bot,
+  Timer
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -44,8 +45,62 @@ const STATUS_CONFIG = {
 
 export default function HumanTaskCard({ task, submissions }) {
   const [showDetails, setShowDetails] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(null);
   const statusConfig = STATUS_CONFIG[task.status] || STATUS_CONFIG.open;
   const StatusIcon = statusConfig.icon;
+
+  // Calculate time remaining for claimed tasks or deadline for open tasks
+  useEffect(() => {
+    const calculateTimeRemaining = () => {
+      const now = new Date();
+      
+      if (task.status === 'claimed' && task.claimed_at) {
+        // Time remaining on claim
+        const claimExpiry = new Date(new Date(task.claimed_at).getTime() + (task.claim_timeout_minutes || 30) * 60 * 1000);
+        const remaining = claimExpiry - now;
+        return remaining > 0 ? remaining : 0;
+      } else if (task.status === 'open' && task.deadline) {
+        // Time remaining until deadline
+        const deadline = new Date(task.deadline);
+        const remaining = deadline - now;
+        return remaining > 0 ? remaining : 0;
+      }
+      return null;
+    };
+
+    setTimeRemaining(calculateTimeRemaining());
+
+    // Update every second
+    const interval = setInterval(() => {
+      setTimeRemaining(calculateTimeRemaining());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [task.status, task.claimed_at, task.deadline, task.claim_timeout_minutes]);
+
+  const formatTimeRemaining = (ms) => {
+    if (ms === null || ms === undefined) return null;
+    if (ms <= 0) return '0:00';
+    
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const getTimeColor = (ms) => {
+    if (ms === null || ms === undefined) return 'text-slate-400';
+    const minutes = ms / 60000;
+    if (minutes <= 2) return 'text-red-500 animate-pulse';
+    if (minutes <= 5) return 'text-red-400';
+    if (minutes <= 10) return 'text-yellow-400';
+    return 'text-green-400';
+  };
 
   const formatOutput = (output) => {
     try {
@@ -91,11 +146,25 @@ export default function HumanTaskCard({ task, submissions }) {
             <p className="text-xs text-slate-500">Bot Stake</p>
           </div>
           <div className="text-center">
-            <div className="flex items-center justify-center gap-1 text-red-400 mb-1">
-              <Clock className="w-4 h-4" />
-              <span className="text-sm font-semibold">{task.claim_timeout_minutes}</span>
-            </div>
-            <p className="text-xs text-slate-500">Minutes</p>
+            {(task.status === 'claimed' || (task.status === 'open' && task.deadline)) && timeRemaining !== null ? (
+              <>
+                <div className={`flex items-center justify-center gap-1 mb-1 ${getTimeColor(timeRemaining)}`}>
+                  <Timer className="w-4 h-4" />
+                  <span className="text-sm font-semibold font-mono">{formatTimeRemaining(timeRemaining)}</span>
+                </div>
+                <p className="text-xs text-slate-500">
+                  {task.status === 'claimed' ? 'Time Left' : 'Expires In'}
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-center gap-1 text-red-400 mb-1">
+                  <Clock className="w-4 h-4" />
+                  <span className="text-sm font-semibold">{task.claim_timeout_minutes}</span>
+                </div>
+                <p className="text-xs text-slate-500">Minutes</p>
+              </>
+            )}
           </div>
         </div>
 
