@@ -358,6 +358,30 @@ const ERROR_CODES = [
   { code: 'E999', message: 'Internal server error', status: 500 }
 ];
 
+const FEE_DOCS = {
+  title: 'Protocol Fee Behavior',
+  description: `When a task or milestone is accepted and payment is processed:
+  
+1. **Default Fee Rate**: 300 basis points (3%) applied to all payouts
+2. **Per-Task Override**: Set \`protocol_fee_rate_bps\` on task to override default
+3. **Fee Calculation**: fee = gross_amount × (rate_bps / 10000)
+4. **Net Payout**: worker receives gross_amount - fee
+5. **Protocol Credit**: fee amount is credited to protocol ledger
+6. **Idempotency**: Settlement IDs prevent double-crediting on retry
+
+**Example**: Task pays $100 with 300 bps fee
+- Fee: $100 × 0.03 = $3.00
+- Worker receives: $97.00
+- Protocol receives: $3.00
+
+**LedgerEntry records created**:
+- \`protocol_fee_accrual\`: fee amount to protocol
+- \`payout\`: net amount to worker
+
+**Events emitted**:
+- \`protocol_fee_accrued\`: includes task_id, chain, gross, fee, net, rate_bps`
+};
+
 export default function ApiDocs() {
   const [expandedEndpoint, setExpandedEndpoint] = useState('list_tasks');
 
@@ -438,6 +462,9 @@ export default function ApiDocs() {
               <nav className="space-y-1">
                 <a href="#authentication" className="block px-3 py-2 text-sm text-slate-400 hover:text-slate-200 hover:bg-slate-900/50 rounded">
                   Authentication
+                </a>
+                <a href="#protocol-fees" className="block px-3 py-2 text-sm text-slate-400 hover:text-slate-200 hover:bg-slate-900/50 rounded">
+                  Protocol Fees
                 </a>
                 <a href="#error-codes" className="block px-3 py-2 text-sm text-slate-400 hover:text-slate-200 hover:bg-slate-900/50 rounded">
                   Error Codes
@@ -555,6 +582,17 @@ export default function ApiDocs() {
                 )}
               </section>
             ))}
+
+            {/* Protocol Fees */}
+            <section id="protocol-fees" className="bg-slate-950 border border-red-900/50 rounded-lg p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Code className="w-5 h-5 text-red-500" />
+                <h2 className="text-lg text-slate-100">{FEE_DOCS.title}</h2>
+              </div>
+              <pre className="bg-black border border-red-900/30 rounded p-4 text-xs text-slate-300 whitespace-pre-wrap">
+                {FEE_DOCS.description}
+              </pre>
+            </section>
 
             {/* Error Codes */}
             <section id="error-codes" className="bg-slate-950 border border-red-900/50 rounded-lg p-6">
