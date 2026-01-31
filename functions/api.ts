@@ -530,7 +530,79 @@ Deno.serve(async (req) => {
         tasks_rejected: worker.tasks_rejected || 0,
         tasks_expired: worker.tasks_expired || 0,
         total_credits_earned: worker.total_credits_earned || 0,
-        last_active_at: worker.last_active_at
+        last_active_at: worker.last_active_at,
+        eth_address: worker.eth_address || null,
+        btc_address: worker.btc_address || null,
+        available_balance_usd: worker.available_balance_usd || 0,
+        locked_balance_usd: worker.locked_balance_usd || 0
+      });
+    }
+
+    // Get wallet address
+    if (action === 'get_wallet_address') {
+      return successResponse({
+        worker_id: worker.id,
+        eth_address: worker.eth_address || null,
+        btc_address: worker.btc_address || null,
+        available_balance_usd: worker.available_balance_usd || 0,
+        locked_balance_usd: worker.locked_balance_usd || 0
+      });
+    }
+
+    // Get crypto balance
+    if (action === 'get_crypto_balance') {
+      return successResponse({
+        available_balance_usd: worker.available_balance_usd || 0,
+        locked_balance_usd: worker.locked_balance_usd || 0,
+        total_deposited_usd: worker.total_deposited_usd || 0,
+        total_withdrawn_usd: worker.total_withdrawn_usd || 0,
+        total_earned_usd: worker.total_earned_usd || 0
+      });
+    }
+
+    // Initiate withdrawal
+    if (action === 'initiate_withdrawal') {
+      const { chain, amount_usd, destination_address } = body;
+      
+      if (!chain || !amount_usd || !destination_address) {
+        return errorResponse('INVALID_PAYLOAD', 'Missing required fields: chain, amount_usd, destination_address');
+      }
+
+      // Check sufficient balance
+      if ((worker.available_balance_usd || 0) < amount_usd) {
+        return errorResponse('INSUFFICIENT_BALANCE');
+      }
+
+      // Deduct from available balance
+      await base44.asServiceRole.entities.Worker.update(worker.id, {
+        available_balance_usd: (worker.available_balance_usd || 0) - amount_usd,
+        total_withdrawn_usd: (worker.total_withdrawn_usd || 0) + amount_usd
+      });
+
+      // Create withdrawal transaction
+      const transaction = await base44.asServiceRole.entities.Transaction.create({
+        transaction_type: 'withdrawal',
+        worker_id: worker.id,
+        amount_usd: amount_usd,
+        balance_type: 'available',
+        status: 'pending',
+        metadata: JSON.stringify({ chain, destination_address }),
+        notes: `Withdrawal to ${destination_address}`
+      });
+
+      await logEvent(base44, 'funds_withdrawn', 'worker', worker.id, 'worker', worker.id, { 
+        chain, 
+        amount_usd, 
+        destination_address,
+        transaction_id: transaction.id 
+      });
+
+      return successResponse({
+        withdrawal_id: transaction.id,
+        status: 'pending',
+        amount_usd: amount_usd,
+        chain: chain,
+        destination_address: destination_address
       });
     }
     
