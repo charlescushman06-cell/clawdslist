@@ -1297,9 +1297,13 @@ Deno.serve(async (req) => {
       })));
     }
 
-    // Create a task (bot-to-bot marketplace)
+    // Create a task (bot-to-bot marketplace with escrow)
     if (action === 'create_task') {
-      const { title, type, description, requirements, input_data, output_schema, task_price_usd, required_stake_usd, deadline, tags, settlement_chain } = body;
+      const { 
+        title, type, description, requirements, input_data, output_schema, 
+        task_price_usd, required_stake_usd, deadline, tags, settlement_chain,
+        reward, currency, expires_in_minutes, validation_mode 
+      } = body;
 
       if (!title || !type || !description) {
         return errorResponse('INVALID_PAYLOAD', 'title, type, and description required');
@@ -1310,18 +1314,101 @@ Deno.serve(async (req) => {
         return errorResponse('INVALID_PAYLOAD', `type must be one of: ${validTypes.join(', ')}`);
       }
 
+      // Support both USD pricing and crypto reward
       const taskPrice = parseFloat(task_price_usd) || 0;
       const stakeRequired = parseFloat(required_stake_usd) || 0;
-      const chain = settlement_chain || 'ETH';
+      const chain = settlement_chain || currency || 'ETH';
+      const rewardAmount = reward ? reward.toString() : null;
+      const taskValidationMode = validation_mode || 'none';
 
-      // Check payer has sufficient balance to fund the task
-      if (taskPrice > 0) {
+      // Validate validation_mode
+      const validModes = ['deterministic', 'multi_worker', 'reputation', 'none'];
+      if (!validModes.includes(taskValidationMode)) {
+        return errorResponse('INVALID_PAYLOAD', `validation_mode must be one of: ${validModes.join(', ')}`);
+      }
+
+      // Calculate expiration
+      let expiresAt = deadline || null;
+      if (expires_in_minutes && !expiresAt) {
+        expiresAt = new Date(Date.now() + parseInt(expires_in_minutes) * 60 * 1000).toISOString();
+      }
+
+      // Decimal math helpers for crypto amounts
+      const toScaled = (amt) => {
+        if (!amt) return 0n;
+        if (typeof amt === 'string') {
+          const [whole, frac = ''] = amt.split('.');
+          return BigInt(whole + frac.padEnd(18, '0').slice(0, 18));
+        }
+        return BigInt(Math.round(Number(amt) * 1e18));
+      };
+      const fromScaled = (scaled) => {
+        const str = scaled.toString().padStart(19, '0');
+        const whole = str.slice(0, -18) || '0';
+        const frac = str.slice(-18).replace(/0+$/, '') || '0';
+        return frac === '0' ? whole : `${whole}.${frac}`;
+      };
+
+      // Handle escrow for crypto rewards
+      if (rewardAmount && toScaled(rewardAmount) > 0n) {
+        // Get worker's ledger account for this chain
+        const accounts = await base44.asServiceRole.entities.LedgerAccount.filter({
+          owner_type: 'worker',
+          owner_id: worker.id,
+          chain
+        });
+
+        if (accounts.length === 0) {
+          return errorResponse('INSUFFICIENT_BALANCE', `No ${chain} balance available. Deposit funds first.`);
+        }
+
+        const account = accounts[0];
+        const availableBalance = account.available_balance || '0';
+
+        if (toScaled(rewardAmount) > toScaled(availableBalance)) {
+          return errorResponse('INSUFFICIENT_BALANCE', `Need ${rewardAmount} ${chain} to fund task, available: ${availableBalance} ${chain}`);
+        }
+
+        // Lock escrow: available -> locked
+        const newAvailable = fromScaled(toScaled(availableBalance) - toScaled(rewardAmount));
+        const newLocked = fromScaled(toScaled(account.locked_balance || '0') + toScaled(rewardAmount));
+
+        await base44.asServiceRole.entities.LedgerAccount.update(account.id, {
+          available_balance: newAvailable,
+          locked_balance: newLocked
+        });
+
+        // Create ledger entry for escrow lock
+        await base44.asServiceRole.entities.LedgerEntry.create({
+          chain,
+          amount: rewardAmount,
+          entry_type: 'lock',
+          from_owner_type: 'worker',
+          from_owner_id: worker.id,
+          to_owner_type: 'worker',
+          to_owner_id: worker.id,
+          metadata: JSON.stringify({
+            action: 'task_escrow_locked',
+            task_title: title
+          })
+        });
+
+        await logEvent(base44, 'escrow_locked', 'task', null, 'worker', worker.id, {
+          chain,
+          amount: rewardAmount,
+          task_title: title,
+          new_available: newAvailable,
+          new_locked: newLocked
+        });
+      }
+
+      // Also handle USD-based funding (legacy path)
+      if (taskPrice > 0 && !rewardAmount) {
         const ledger = await getOrCreateLedger(base44, worker.id);
         if (ledger.available_balance < taskPrice) {
           return errorResponse('INSUFFICIENT_BALANCE', `Need ${taskPrice} USD to fund task, available: ${ledger.available_balance}`);
         }
 
-        // Lock task payment from payer
         await base44.asServiceRole.entities.Ledger.update(ledger.id, {
           available_balance: ledger.available_balance - taskPrice,
           locked_balance: ledger.locked_balance + taskPrice
@@ -1341,7 +1428,7 @@ Deno.serve(async (req) => {
         type,
         task_type: 'short',
         description,
-        requirements: requirements || null,
+        requirements: requirements ? (typeof requirements === 'string' ? requirements : JSON.stringify(requirements)) : null,
         input_data: input_data ? (typeof input_data === 'string' ? input_data : JSON.stringify(input_data)) : null,
         output_schema: output_schema ? (typeof output_schema === 'string' ? output_schema : JSON.stringify(output_schema)) : null,
         status: 'open',
@@ -1349,19 +1436,40 @@ Deno.serve(async (req) => {
         reward_credits: body.reward_credits || 0,
         task_price_usd: taskPrice,
         required_stake_usd: stakeRequired,
-        deadline: deadline || null,
+        deadline: expiresAt,
+        expires_at: expiresAt,
         tags: tags || [],
         settlement_chain: chain,
+        currency: chain,
         payer_id: worker.id,
-        claim_timeout_minutes: body.claim_timeout_minutes || 30
+        creator_worker_id: worker.id,
+        claim_timeout_minutes: body.claim_timeout_minutes || 30,
+        reward: rewardAmount,
+        escrow_amount: rewardAmount,
+        escrow_status: rewardAmount ? 'locked' : 'none',
+        validation_mode: taskValidationMode
       });
 
+      // Log task creation event
       await logEvent(base44, 'task_created', 'task', task.id, 'worker', worker.id, {
         title,
         type,
         task_price_usd: taskPrice,
-        payer_id: worker.id
+        reward: rewardAmount,
+        currency: chain,
+        escrow_status: rewardAmount ? 'locked' : 'none',
+        validation_mode: taskValidationMode,
+        creator_worker_id: worker.id
       });
+
+      // Log escrow locked event if applicable
+      if (rewardAmount) {
+        await logEvent(base44, 'escrow_locked', 'task', task.id, 'worker', worker.id, {
+          chain,
+          amount: rewardAmount,
+          task_id: task.id
+        });
+      }
 
       return successResponse({
         task_id: task.id,
@@ -1370,6 +1478,12 @@ Deno.serve(async (req) => {
         status: task.status,
         task_price_usd: taskPrice,
         required_stake_usd: stakeRequired,
+        reward: rewardAmount,
+        currency: chain,
+        escrow_amount: rewardAmount,
+        escrow_status: rewardAmount ? 'locked' : 'none',
+        validation_mode: taskValidationMode,
+        expires_at: expiresAt,
         settlement_chain: chain,
         created_date: task.created_date
       });
