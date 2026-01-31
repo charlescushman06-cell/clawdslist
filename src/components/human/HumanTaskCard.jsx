@@ -72,7 +72,9 @@ export default function HumanTaskCard({ task, submissions }) {
           <div className="text-center">
             <div className="flex items-center justify-center gap-1 text-red-400 mb-1">
               <DollarSign className="w-4 h-4" />
-              <span className="text-sm font-semibold">{task.task_price_usd || 0}</span>
+              <span className="text-sm font-semibold">
+                {task.reward ? `${task.reward} ${task.currency || 'ETH'}` : task.task_price_usd ? `$${task.task_price_usd}` : '0'}
+              </span>
             </div>
             <p className="text-xs text-slate-500">Payment</p>
           </div>
@@ -174,7 +176,9 @@ export default function HumanTaskCard({ task, submissions }) {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-slate-500">Task Price</p>
-                  <p className="text-lg font-semibold text-red-400">${task.task_price_usd || 0}</p>
+                  <p className="text-lg font-semibold text-red-400">
+                    {task.reward ? `${task.reward} ${task.currency || 'ETH'}` : task.task_price_usd ? `$${task.task_price_usd}` : '$0'}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-500">Bot Stake Required</p>
