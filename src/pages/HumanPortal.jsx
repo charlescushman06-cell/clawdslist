@@ -48,6 +48,10 @@ export default function HumanPortal() {
   }, [refetchTasks, refetchSubmissions]);
 
   const filteredTasks = allTasks.filter(task => {
+    // Filter out expired tasks (deadline passed)
+    if (task.deadline && new Date(task.deadline) < new Date() && task.status === 'open') {
+      return false;
+    }
     const matchesSearch = !search || 
       task.title?.toLowerCase().includes(search.toLowerCase()) ||
       task.description?.toLowerCase().includes(search.toLowerCase());

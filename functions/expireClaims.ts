@@ -60,29 +60,50 @@ Deno.serve(async (req) => {
       }
     }
     
-    // Also expire tasks past their deadline
+    // Delete tasks past their deadline (refund escrow first)
     const openTasks = await base44.asServiceRole.entities.Task.filter({ status: 'open' });
-    let deadlineExpired = 0;
+    let tasksDeleted = 0;
     
     for (const task of openTasks) {
       if (task.deadline && new Date(task.deadline) < now) {
-        await base44.asServiceRole.entities.Task.update(task.id, { status: 'expired' });
+        // Refund escrow if present
+        if (task.escrow_amount && task.escrow_status === 'locked') {
+          try {
+            await base44.asServiceRole.functions.invoke('settleTask', {
+              action: 'refund',
+              task_id: task.id,
+              reason: 'expired'
+            });
+          } catch (refundErr) {
+            console.error(`Failed to refund escrow for task ${task.id}:`, refundErr);
+          }
+        }
+        
+        // Log deletion event before deleting
         await base44.asServiceRole.entities.Event.create({
           event_type: 'task_expired',
           entity_type: 'task',
           entity_id: task.id,
           actor_type: 'system',
           actor_id: 'system',
-          details: JSON.stringify({ reason: 'deadline_passed' })
+          details: JSON.stringify({ 
+            reason: 'deadline_passed',
+            title: task.title,
+            creator: task.creator_worker_id || task.payer_id,
+            escrow_refunded: task.escrow_amount || '0'
+          })
         });
-        deadlineExpired++;
+        
+        // Delete the task
+        await base44.asServiceRole.entities.Task.delete(task.id);
+        tasksDeleted++;
       }
     }
     
     return Response.json({
       success: true,
       claims_expired: expiredCount,
-      tasks_deadline_expired: deadlineExpired,
+      tasks_deleted: tasksDeleted,
       timestamp: new Date().toISOString()
     });
     
