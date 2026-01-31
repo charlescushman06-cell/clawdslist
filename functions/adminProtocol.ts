@@ -186,6 +186,36 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'destination_address is required' }, { status: 400 });
       }
 
+      // Treasury validation check - prevent sweeps if treasury not configured
+      const treasuryConfigs = await base44.asServiceRole.entities.ProtocolConfig.filter({
+        config_key: 'treasury_addresses'
+      });
+
+      function isValidEthAddressCheck(addr) {
+        return addr && /^0x[a-fA-F0-9]{40}$/.test(addr);
+      }
+
+      if (treasuryConfigs.length === 0 || !isValidEthAddressCheck(treasuryConfigs[0].eth_treasury_address)) {
+        await base44.asServiceRole.entities.Event.create({
+          event_type: 'system_error',
+          entity_type: 'transaction',
+          entity_id: 'sweep_blocked',
+          actor_type: 'admin',
+          actor_id: user.id,
+          details: JSON.stringify({
+            status: 'treasury_not_configured',
+            action: 'sweep_blocked',
+            chain,
+            amount,
+            reason: 'Treasury addresses must be configured before sweeping'
+          })
+        });
+        return Response.json({ 
+          error: 'Treasury not configured. Set treasury addresses before sweeping.',
+          status: 'treasury_not_configured'
+        }, { status: 400 });
+      }
+
       // Get protocol account
       const accounts = await base44.asServiceRole.entities.LedgerAccount.filter({
         owner_type: 'protocol',
@@ -444,9 +474,26 @@ Deno.serve(async (req) => {
      * 
      * These addresses are used as destinations for protocol fee sweeps.
      * Do NOT auto-generate or infer from workers/Tatum - must be explicitly set by admin.
+     * 
+     * Validation:
+     * - ETH: must be 0x + 40 hex characters
+     * - BTC: basic format check (26-62 alphanumeric, starting with 1, 3, or bc1)
      */
 
-    // GET treasury addresses
+    // Address validation helpers
+    function isValidEthAddress(address) {
+      if (!address || typeof address !== 'string') return false;
+      return /^0x[a-fA-F0-9]{40}$/.test(address);
+    }
+
+    function isValidBtcAddress(address) {
+      if (!address || typeof address !== 'string') return false;
+      // Basic BTC format: P2PKH (1...), P2SH (3...), Bech32 (bc1...)
+      return /^(1|3)[a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(address) || 
+             /^bc1[a-z0-9]{39,59}$/.test(address);
+    }
+
+    // GET treasury addresses with validation status
     if (action === 'get_treasury_addresses') {
       const configs = await base44.asServiceRole.entities.ProtocolConfig.filter({
         config_key: 'treasury_addresses'
@@ -456,25 +503,135 @@ Deno.serve(async (req) => {
         return Response.json({
           eth_treasury_address: null,
           btc_treasury_address: null,
-          configured: false
+          configured: false,
+          treasury_ready: false,
+          validation: {
+            eth_valid: false,
+            btc_valid: false,
+            status: 'treasury_not_configured'
+          }
         });
       }
 
       const config = configs[0];
+      const ethValid = isValidEthAddress(config.eth_treasury_address);
+      const btcValid = !config.btc_treasury_address || isValidBtcAddress(config.btc_treasury_address);
+      const treasuryReady = ethValid; // ETH is required
+
       return Response.json({
         eth_treasury_address: config.eth_treasury_address || null,
         btc_treasury_address: config.btc_treasury_address || null,
         configured: true,
+        treasury_ready: treasuryReady,
+        validation: {
+          eth_valid: ethValid,
+          btc_valid: btcValid,
+          status: treasuryReady ? 'treasury_configured' : 'treasury_invalid'
+        },
         updated_at: config.updated_date
       });
     }
 
-    // SET treasury addresses
+    // Validate treasury status (for system checks)
+    if (action === 'validate_treasury') {
+      const configs = await base44.asServiceRole.entities.ProtocolConfig.filter({
+        config_key: 'treasury_addresses'
+      });
+
+      if (configs.length === 0) {
+        await base44.asServiceRole.entities.Event.create({
+          event_type: 'system_error',
+          entity_type: 'system',
+          entity_id: 'treasury_validation',
+          actor_type: 'system',
+          actor_id: 'validator',
+          details: JSON.stringify({
+            status: 'treasury_not_configured',
+            message: 'Treasury addresses not configured'
+          })
+        });
+
+        return Response.json({
+          valid: false,
+          status: 'treasury_not_configured',
+          sweep_enabled: false
+        });
+      }
+
+      const config = configs[0];
+      const ethValid = isValidEthAddress(config.eth_treasury_address);
+      const btcValid = !config.btc_treasury_address || isValidBtcAddress(config.btc_treasury_address);
+      const treasuryReady = ethValid;
+
+      // Emit validation event
+      await base44.asServiceRole.entities.Event.create({
+        event_type: treasuryReady ? 'funds_deposited' : 'system_error', // Using funds_deposited as positive system event
+        entity_type: 'system',
+        entity_id: 'treasury_validation',
+        actor_type: 'system',
+        actor_id: 'validator',
+        details: JSON.stringify({
+          status: treasuryReady ? 'treasury_address_configured' : 'treasury_address_invalid',
+          eth_address: config.eth_treasury_address,
+          eth_valid: ethValid,
+          btc_address: config.btc_treasury_address,
+          btc_valid: btcValid,
+          sweep_enabled: treasuryReady
+        })
+      });
+
+      return Response.json({
+        valid: treasuryReady,
+        status: treasuryReady ? 'treasury_address_configured' : 'treasury_address_invalid',
+        sweep_enabled: treasuryReady,
+        validation: { eth_valid: ethValid, btc_valid: btcValid }
+      });
+    }
+
+    // SET treasury addresses with validation
     if (action === 'set_treasury_addresses') {
       const { eth_treasury_address, btc_treasury_address, notes } = body;
 
       if (!eth_treasury_address) {
         return Response.json({ error: 'eth_treasury_address is required' }, { status: 400 });
+      }
+
+      // Validate ETH address format
+      if (!isValidEthAddress(eth_treasury_address)) {
+        await base44.asServiceRole.entities.Event.create({
+          event_type: 'system_error',
+          entity_type: 'system',
+          entity_id: 'treasury_config',
+          actor_type: 'admin',
+          actor_id: user.id,
+          details: JSON.stringify({
+            status: 'treasury_address_invalid',
+            eth_address: eth_treasury_address,
+            reason: 'Invalid ETH address format (expected 0x + 40 hex chars)'
+          })
+        });
+        return Response.json({ 
+          error: 'Invalid ETH address format. Must be 0x followed by 40 hex characters.' 
+        }, { status: 400 });
+      }
+
+      // Validate BTC address if provided
+      if (btc_treasury_address && !isValidBtcAddress(btc_treasury_address)) {
+        await base44.asServiceRole.entities.Event.create({
+          event_type: 'system_error',
+          entity_type: 'system',
+          entity_id: 'treasury_config',
+          actor_type: 'admin',
+          actor_id: user.id,
+          details: JSON.stringify({
+            status: 'treasury_address_invalid',
+            btc_address: btc_treasury_address,
+            reason: 'Invalid BTC address format'
+          })
+        });
+        return Response.json({ 
+          error: 'Invalid BTC address format.' 
+        }, { status: 400 });
       }
 
       // Find existing config
@@ -484,14 +641,12 @@ Deno.serve(async (req) => {
 
       let config;
       if (configs.length > 0) {
-        // Update existing
         config = await base44.asServiceRole.entities.ProtocolConfig.update(configs[0].id, {
           eth_treasury_address,
           btc_treasury_address: btc_treasury_address || null,
           notes: notes || configs[0].notes
         });
       } else {
-        // Create new
         config = await base44.asServiceRole.entities.ProtocolConfig.create({
           config_key: 'treasury_addresses',
           eth_treasury_address,
@@ -500,24 +655,27 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Log event
+      // Emit success event
       await base44.asServiceRole.entities.Event.create({
-        event_type: 'system_error', // Using as generic system event
+        event_type: 'funds_deposited', // Using as positive system event
         entity_type: 'system',
         entity_id: config.id,
         actor_type: 'admin',
         actor_id: user.id,
         details: JSON.stringify({
-          action: 'treasury_addresses_updated',
+          status: 'treasury_address_configured',
           eth_treasury_address,
-          btc_treasury_address: btc_treasury_address || null
+          btc_treasury_address: btc_treasury_address || null,
+          sweep_enabled: true
         })
       });
 
       return Response.json({
         success: true,
         eth_treasury_address,
-        btc_treasury_address: btc_treasury_address || null
+        btc_treasury_address: btc_treasury_address || null,
+        treasury_ready: true,
+        sweep_enabled: true
       });
     }
 
