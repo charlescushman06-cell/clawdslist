@@ -6,11 +6,19 @@ const PROTOCOL_FEE_BPS = parseInt(Deno.env.get('PROTOCOL_FEE_BPS') || '200', 10)
 // Decimal math helpers
 function toScaled(amt) {
   if (!amt) return 0n;
-  if (typeof amt === 'string') {
-    const [whole, frac = ''] = amt.split('.');
-    return BigInt(whole + frac.padEnd(18, '0').slice(0, 18));
+  // Convert to string first
+  const str = String(amt).trim();
+  if (!str || str === '0') return 0n;
+  
+  // Check if it looks like already-scaled wei (very large number without decimal)
+  // If it's > 1e15 and has no decimal, it's likely wei already
+  if (!str.includes('.') && str.length > 15) {
+    return BigInt(str);
   }
-  return BigInt(Math.round(Number(amt) * 1e18));
+  
+  // Normal decimal parsing
+  const [whole, frac = ''] = str.split('.');
+  return BigInt((whole || '0') + frac.padEnd(18, '0').slice(0, 18));
 }
 
 function fromScaled(scaled) {

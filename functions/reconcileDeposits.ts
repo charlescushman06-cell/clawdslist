@@ -10,21 +10,31 @@ const CONFIRMATION_THRESHOLDS = {
 };
 
 // Decimal math helpers
+function toScaled(amt) {
+  if (!amt) return 0n;
+  // Convert to string first
+  const str = String(amt).trim();
+  if (!str || str === '0') return 0n;
+  
+  // Check if it looks like already-scaled wei (very large number without decimal)
+  // If it's > 1e15 and has no decimal, it's likely wei already
+  if (!str.includes('.') && str.length > 15) {
+    return BigInt(str);
+  }
+  
+  // Normal decimal parsing
+  const [whole, frac = ''] = str.split('.');
+  return BigInt((whole || '0') + frac.padEnd(18, '0').slice(0, 18));
+}
+
+function fromScaled(scaled) {
+  const str = scaled.toString().padStart(19, '0');
+  const whole = str.slice(0, -18) || '0';
+  const frac = str.slice(-18).replace(/0+$/, '') || '0';
+  return frac === '0' ? whole : `${whole}.${frac}`;
+}
+
 function addDecimal(a, b) {
-  const toScaled = (amt) => {
-    if (!amt) return 0n;
-    if (typeof amt === 'string') {
-      const [whole, frac = ''] = amt.split('.');
-      return BigInt(whole + frac.padEnd(18, '0').slice(0, 18));
-    }
-    return BigInt(Math.round(Number(amt) * 1e18));
-  };
-  const fromScaled = (scaled) => {
-    const str = scaled.toString().padStart(19, '0');
-    const whole = str.slice(0, -18) || '0';
-    const frac = str.slice(-18).replace(/0+$/, '') || '0';
-    return frac === '0' ? whole : `${whole}.${frac}`;
-  };
   return fromScaled(toScaled(a) + toScaled(b));
 }
 
