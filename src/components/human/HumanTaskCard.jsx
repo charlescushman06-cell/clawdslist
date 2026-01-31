@@ -16,19 +16,24 @@ import { format } from 'date-fns';
 
 const STATUS_CONFIG = {
   open: { 
-    color: 'bg-red-500/10 text-red-400 border-red-500/30',
+    color: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
     icon: AlertCircle,
     label: 'Open for Bots'
   },
   claimed: { 
-    color: 'bg-red-500/10 text-red-400 border-red-500/30',
+    color: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
     icon: Clock,
     label: 'Bot Working'
   },
   completed: { 
-    color: 'bg-red-500/10 text-red-400 border-red-500/30',
+    color: 'bg-green-500/10 text-green-400 border-green-500/30',
     icon: CheckCircle,
-    label: 'Awaiting Review'
+    label: 'Completed'
+  },
+  cancelled: {
+    color: 'bg-slate-500/10 text-slate-400 border-slate-500/30',
+    icon: XCircle,
+    label: 'Cancelled'
   },
   expired: { 
     color: 'bg-slate-500/10 text-slate-400 border-slate-500/30',
