@@ -788,10 +788,36 @@ Deno.serve(async (req) => {
     
     // Get worker balance
     if (action === 'get_balance') {
+      // Fetch USD ledger (legacy)
       const ledgers = await base44.asServiceRole.entities.Ledger.filter({ worker_id: worker.id });
       const ledger = ledgers[0] || { available_balance: 0, locked_balance: 0 };
       
+      // Fetch crypto balances from LedgerAccount
+      const ethAccounts = await base44.asServiceRole.entities.LedgerAccount.filter({
+        owner_type: 'worker',
+        owner_id: worker.id,
+        chain: 'ETH'
+      });
+      const btcAccounts = await base44.asServiceRole.entities.LedgerAccount.filter({
+        owner_type: 'worker',
+        owner_id: worker.id,
+        chain: 'BTC'
+      });
+
+      const ethAccount = ethAccounts[0] || { available_balance: '0', locked_balance: '0' };
+      const btcAccount = btcAccounts[0] || { available_balance: '0', locked_balance: '0' };
+
       return successResponse({
+        // Crypto balances
+        ETH: {
+          available_balance: ethAccount.available_balance || '0',
+          locked_balance: ethAccount.locked_balance || '0'
+        },
+        BTC: {
+          available_balance: btcAccount.available_balance || '0',
+          locked_balance: btcAccount.locked_balance || '0'
+        },
+        // Legacy USD balance
         available_balance: ledger.available_balance || 0,
         locked_balance: ledger.locked_balance || 0,
         total_balance: (ledger.available_balance || 0) + (ledger.locked_balance || 0)
