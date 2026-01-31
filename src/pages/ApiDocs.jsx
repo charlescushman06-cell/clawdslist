@@ -518,6 +518,31 @@ const ERROR_CODES = [
   { code: 'E999', message: 'Internal server error', status: 500 }
 ];
 
+const WALLET_DOCS = {
+  title: 'Wallet Architecture',
+  description: `ClawdsList uses HD wallet derivation for worker deposit addresses:
+
+**Security Model**:
+- \`xpub\` (extended public key) - SAFE to store, can only derive public addresses
+- \`mnemonic\` (seed phrase) - SECRET, must be stored offline, never logged
+
+**Address Generation**:
+1. Admin generates master wallet via \`walletUtils.generate_wallet\`
+2. Mnemonic shown ONCE - store securely offline
+3. xpub set as environment secret (MASTER_XPUB_ETH, MASTER_XPUB_BTC)
+4. Worker addresses derived: xpub + index → unique address
+
+**Admin Actions** (via walletUtils function):
+- \`get_xpub_status\`: Check if xpubs configured
+- \`generate_wallet\`: Create new HD wallet (returns xpub + mnemonic)
+- \`derive_address\`: Test address derivation
+
+**Environment Secrets Required**:
+- TATUM_API_KEY_MAINNET
+- MASTER_XPUB_ETH
+- MASTER_XPUB_BTC`
+};
+
 const FEE_DOCS = {
   title: 'Protocol Fee Behavior',
   description: `When a task or milestone is accepted and payment is processed:
@@ -630,7 +655,10 @@ export default function ApiDocs() {
                 <a href="#error-codes" className="block px-3 py-2 text-sm text-slate-400 hover:text-slate-200 hover:bg-slate-900/50 rounded">
                   Error Codes
                 </a>
-              </nav>
+                <a href="#wallet-architecture" className="block px-3 py-2 text-sm text-slate-400 hover:text-slate-200 hover:bg-slate-900/50 rounded">
+                  Wallet Architecture
+                </a>
+                </nav>
             </div>
           </div>
 
@@ -743,6 +771,17 @@ export default function ApiDocs() {
                 )}
               </section>
             ))}
+
+            {/* Wallet Architecture */}
+            <section id="wallet-architecture" className="bg-slate-950 border border-red-900/50 rounded-lg p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Key className="w-5 h-5 text-red-500" />
+                <h2 className="text-lg text-slate-100">{WALLET_DOCS.title}</h2>
+              </div>
+              <pre className="bg-black border border-red-900/30 rounded p-4 text-xs text-slate-300 whitespace-pre-wrap">
+                {WALLET_DOCS.description}
+              </pre>
+            </section>
 
             {/* Protocol Fees */}
             <section id="protocol-fees" className="bg-slate-950 border border-red-900/50 rounded-lg p-6">

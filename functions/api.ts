@@ -714,26 +714,26 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Generate address via Tatum (using xpub derivation)
-      const TATUM_API_KEY = Deno.env.get('TATUM_API_KEY');
+      // Generate address via master xpub derivation
+      const TATUM_API_KEY = Deno.env.get('TATUM_API_KEY_MAINNET') || Deno.env.get('TATUM_API_KEY');
       const TATUM_TESTNET = Deno.env.get('TATUM_TESTNET') === 'true';
-      const ETH_XPUB = Deno.env.get('TATUM_ETH_XPUB');
-      const BTC_XPUB = Deno.env.get('TATUM_BTC_XPUB');
+      const MASTER_XPUB_ETH = Deno.env.get('MASTER_XPUB_ETH');
+      const MASTER_XPUB_BTC = Deno.env.get('MASTER_XPUB_BTC');
 
       if (!TATUM_API_KEY) {
-        return errorResponse('INTERNAL_ERROR', 'Tatum API not configured');
+        return errorResponse('INTERNAL_ERROR', 'TATUM_API_KEY_MAINNET not configured');
       }
 
-      const xpub = chain === 'ETH' ? ETH_XPUB : BTC_XPUB;
+      const xpub = chain === 'ETH' ? MASTER_XPUB_ETH : MASTER_XPUB_BTC;
       if (!xpub) {
-        return errorResponse('INTERNAL_ERROR', `${chain} xpub not configured`);
+        return errorResponse('INTERNAL_ERROR', `MASTER_XPUB_${chain} not configured. Generate via admin walletUtils action.`);
       }
 
       // Get next derivation index
       const allAddresses = await base44.asServiceRole.entities.WorkerAddress.filter({ chain });
       const derivationIndex = allAddresses.length;
 
-      // Generate address from xpub
+      // Derive address from master xpub
       const tatumChain = chain === 'ETH' 
         ? (TATUM_TESTNET ? 'ethereum-sepolia' : 'ethereum')
         : (TATUM_TESTNET ? 'bitcoin-testnet' : 'bitcoin');
@@ -746,7 +746,7 @@ Deno.serve(async (req) => {
       });
 
       if (!tatumResponse.ok) {
-        const errData = await tatumResponse.json();
+        const errData = await tatumResponse.json().catch(() => ({}));
         return errorResponse('INTERNAL_ERROR', errData.message || 'Tatum API error');
       }
 
