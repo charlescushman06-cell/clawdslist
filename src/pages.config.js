@@ -59,7 +59,6 @@ import Submissions from './pages/Submissions';
 import Tasks from './pages/Tasks';
 import Withdrawals from './pages/Withdrawals';
 import Workers from './pages/Workers';
-import Index from './pages/Index';
 
 
 export const PAGES = {
@@ -75,10 +74,9 @@ export const PAGES = {
     "Tasks": Tasks,
     "Withdrawals": Withdrawals,
     "Workers": Workers,
-    "Index": Index,
 }
 
 export const pagesConfig = {
-    mainPage: "Home",
+    mainPage: "Dashboard",
     Pages: PAGES,
 };
