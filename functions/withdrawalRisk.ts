@@ -305,17 +305,28 @@ function canAutoApprove(riskScore, reasons, chain, amount) {
  * Process withdrawal request with risk assessment
  */
 async function processWithdrawalRequest(base44, withdrawalId) {
+  console.log(`[withdrawalRisk] Processing withdrawal ${withdrawalId}`);
+  
   const withdrawals = await base44.asServiceRole.entities.WithdrawalRequest.filter({
     id: withdrawalId
   });
   
   if (withdrawals.length === 0) {
+    console.log(`[withdrawalRisk] Withdrawal not found: ${withdrawalId}`);
     throw new Error('Withdrawal not found');
   }
   
   const withdrawal = withdrawals[0];
+  console.log(`[withdrawalRisk] Withdrawal found:`, JSON.stringify({
+    id: withdrawal.id,
+    status: withdrawal.status,
+    chain: withdrawal.chain,
+    amount: withdrawal.amount,
+    destination: withdrawal.destination_address
+  }));
   
   if (withdrawal.status !== 'requested') {
+    console.log(`[withdrawalRisk] Already processed: status=${withdrawal.status}`);
     return { 
       withdrawal_id: withdrawalId, 
       status: withdrawal.status, 
@@ -328,12 +339,22 @@ async function processWithdrawalRequest(base44, withdrawalId) {
   });
   
   if (workers.length === 0) {
+    console.log(`[withdrawalRisk] Worker not found: ${withdrawal.worker_id}`);
     throw new Error('Worker not found');
   }
   
   const worker = workers[0];
+  console.log(`[withdrawalRisk] Worker:`, JSON.stringify({
+    id: worker.id,
+    name: worker.name,
+    reputation: worker.reputation_score,
+    status: worker.status,
+    created_date: worker.created_date
+  }));
+  
   const chain = withdrawal.chain;
   const config = CHAIN_CONFIG[chain];
+  console.log(`[withdrawalRisk] Chain config for ${chain}:`, JSON.stringify(config));
 
   // ========== CIRCUIT BREAKER CHECK ==========
   if (config.DISABLED) {
@@ -465,6 +486,18 @@ async function processWithdrawalRequest(base44, withdrawalId) {
   
   // Compute risk score
   const { score, reasons } = await computeRiskScore(base44, worker, withdrawal, payoutAddress);
+  
+  console.log(`[withdrawalRisk] Risk assessment result:`, JSON.stringify({
+    withdrawal_id: withdrawalId,
+    risk_score: score,
+    risk_reasons: reasons,
+    auto_withdraw_max: config.AUTO_WITHDRAW_MAX,
+    amount: withdrawal.amount,
+    can_auto_approve_check: {
+      score_is_zero: score === 0,
+      amount_within_limit: compareDecimal(withdrawal.amount, config.AUTO_WITHDRAW_MAX) <= 0
+    }
+  }));
   
   // Update withdrawal with risk info
   await base44.asServiceRole.entities.WithdrawalRequest.update(withdrawalId, {

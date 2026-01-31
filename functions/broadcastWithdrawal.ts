@@ -189,20 +189,32 @@ async function broadcastBtcTransaction(amount, destinationAddress) {
  * Main broadcast function
  */
 async function broadcastWithdrawal(base44, withdrawalId) {
+  console.log(`[broadcastWithdrawal] Starting broadcast for withdrawal ${withdrawalId}`);
+  
   // Fetch withdrawal
   const withdrawals = await base44.asServiceRole.entities.WithdrawalRequest.filter({
     id: withdrawalId
   });
 
   if (withdrawals.length === 0) {
+    console.log(`[broadcastWithdrawal] Withdrawal not found: ${withdrawalId}`);
     throw new Error('Withdrawal not found');
   }
 
   const withdrawal = withdrawals[0];
+  console.log(`[broadcastWithdrawal] Withdrawal found:`, JSON.stringify({
+    id: withdrawal.id,
+    status: withdrawal.status,
+    chain: withdrawal.chain,
+    amount: withdrawal.amount,
+    destination: withdrawal.destination_address,
+    tx_hash: withdrawal.tx_hash
+  }));
 
   // IDEMPOTENCY CHECK: Only broadcast if status is 'approved'
   // If already broadcasted/confirmed/failed, skip
   if (withdrawal.status !== 'approved') {
+    console.log(`[broadcastWithdrawal] Not in approved state, skipping. Current status: ${withdrawal.status}`);
     return {
       withdrawal_id: withdrawalId,
       status: withdrawal.status,
@@ -231,15 +243,26 @@ async function broadcastWithdrawal(base44, withdrawalId) {
   let broadcastError = null;
 
   try {
+    console.log(`[broadcastWithdrawal] Attempting ${chain} broadcast:`, JSON.stringify({
+      amount,
+      destinationAddress,
+      eth_mnemonic_configured: !!HOT_WALLET_MNEMONIC_ETH,
+      btc_mnemonic_configured: !!HOT_WALLET_MNEMONIC_BTC,
+      tatum_api_key_configured: !!TATUM_API_KEY,
+      testnet: TATUM_TESTNET
+    }));
+    
     // Broadcast based on chain
     if (chain === 'ETH') {
       const result = await broadcastEthTransaction(amount, destinationAddress);
       txHash = result.txHash;
       providerReference = result.providerReference;
+      console.log(`[broadcastWithdrawal] ETH broadcast success:`, JSON.stringify(result));
     } else if (chain === 'BTC') {
       const result = await broadcastBtcTransaction(amount, destinationAddress);
       txHash = result.txHash;
       providerReference = result.providerReference;
+      console.log(`[broadcastWithdrawal] BTC broadcast success:`, JSON.stringify(result));
     } else {
       throw new Error(`Unsupported chain: ${chain}`);
     }
@@ -283,6 +306,14 @@ async function broadcastWithdrawal(base44, withdrawalId) {
 
   } catch (err) {
     broadcastError = err.message;
+    console.error(`[broadcastWithdrawal] Broadcast FAILED:`, JSON.stringify({
+      withdrawal_id: withdrawalId,
+      chain,
+      amount,
+      destination: destinationAddress,
+      error: broadcastError,
+      error_stack: err.stack
+    }));
 
     // FAILURE: Update withdrawal to failed
     await base44.asServiceRole.entities.WithdrawalRequest.update(withdrawalId, {
