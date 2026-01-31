@@ -700,7 +700,7 @@ Deno.serve(async (req) => {
         return errorResponse('INVALID_PAYLOAD', 'chain must be ETH or BTC');
       }
 
-      // Check if address already exists
+      // Check if address already exists for this worker+chain
       const existing = await base44.asServiceRole.entities.WorkerAddress.filter({
         worker_id: worker.id,
         chain
@@ -710,11 +710,12 @@ Deno.serve(async (req) => {
         return successResponse({
           chain,
           address: existing[0].address,
+          derivation_index: existing[0].derivation_index,
           message: 'Address already exists'
         });
       }
 
-      // Generate address via master xpub derivation
+      // Config
       const TATUM_API_KEY = Deno.env.get('TATUM_API_KEY_MAINNET') || Deno.env.get('TATUM_API_KEY');
       const TATUM_TESTNET = Deno.env.get('TATUM_TESTNET') === 'true';
       const MASTER_XPUB_ETH = Deno.env.get('MASTER_XPUB_ETH');
@@ -729,9 +730,24 @@ Deno.serve(async (req) => {
         return errorResponse('INTERNAL_ERROR', `MASTER_XPUB_${chain} not configured. Generate via admin walletUtils action.`);
       }
 
-      // Get next derivation index
-      const allAddresses = await base44.asServiceRole.entities.WorkerAddress.filter({ chain });
-      const derivationIndex = allAddresses.length;
+      // Atomic derivation index allocation via DerivationCounter
+      let derivationIndex;
+      const counters = await base44.asServiceRole.entities.DerivationCounter.filter({ chain });
+      
+      if (counters.length === 0) {
+        // Initialize counter for this chain
+        await base44.asServiceRole.entities.DerivationCounter.create({
+          chain,
+          next_index: 1
+        });
+        derivationIndex = 0;
+      } else {
+        const counter = counters[0];
+        derivationIndex = counter.next_index;
+        await base44.asServiceRole.entities.DerivationCounter.update(counter.id, {
+          next_index: derivationIndex + 1
+        });
+      }
 
       // Derive address from master xpub
       const tatumChain = chain === 'ETH' 
@@ -754,14 +770,14 @@ Deno.serve(async (req) => {
       const generatedAddress = tatumData.address;
 
       // Store WorkerAddress
-      const workerAddress = await base44.asServiceRole.entities.WorkerAddress.create({
+      await base44.asServiceRole.entities.WorkerAddress.create({
         worker_id: worker.id,
         chain,
         address: generatedAddress,
         derivation_index: derivationIndex
       });
 
-      // Register in TrackedAddress
+      // Register in TrackedAddress for webhook processing
       await base44.asServiceRole.entities.TrackedAddress.create({
         chain,
         address: generatedAddress,
@@ -780,6 +796,7 @@ Deno.serve(async (req) => {
       return successResponse({
         chain,
         address: generatedAddress,
+        derivation_index: derivationIndex,
         message: 'Address generated and registered'
       });
     }
