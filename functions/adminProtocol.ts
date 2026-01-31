@@ -734,6 +734,64 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Upsert TrackedAddress for ETH treasury
+      const existingEthTracked = await base44.asServiceRole.entities.TrackedAddress.filter({
+        chain: 'ETH',
+        address: eth_treasury_address
+      });
+      if (existingEthTracked.length === 0) {
+        await base44.asServiceRole.entities.TrackedAddress.create({
+          chain: 'ETH',
+          address: eth_treasury_address,
+          owner_type: 'protocol',
+          owner_id: null,
+          purpose: 'treasury'
+        });
+        await base44.asServiceRole.entities.Event.create({
+          event_type: 'tracked_address_registered',
+          entity_type: 'system',
+          entity_id: eth_treasury_address,
+          actor_type: 'admin',
+          actor_id: user.id,
+          details: JSON.stringify({
+            chain: 'ETH',
+            address: eth_treasury_address,
+            owner_type: 'protocol',
+            purpose: 'treasury'
+          })
+        });
+      }
+
+      // Upsert TrackedAddress for BTC treasury if provided
+      if (btc_treasury_address) {
+        const existingBtcTracked = await base44.asServiceRole.entities.TrackedAddress.filter({
+          chain: 'BTC',
+          address: btc_treasury_address
+        });
+        if (existingBtcTracked.length === 0) {
+          await base44.asServiceRole.entities.TrackedAddress.create({
+            chain: 'BTC',
+            address: btc_treasury_address,
+            owner_type: 'protocol',
+            owner_id: null,
+            purpose: 'treasury'
+          });
+          await base44.asServiceRole.entities.Event.create({
+            event_type: 'tracked_address_registered',
+            entity_type: 'system',
+            entity_id: btc_treasury_address,
+            actor_type: 'admin',
+            actor_id: user.id,
+            details: JSON.stringify({
+              chain: 'BTC',
+              address: btc_treasury_address,
+              owner_type: 'protocol',
+              purpose: 'treasury'
+            })
+          });
+        }
+      }
+
       // Emit success event
       await base44.asServiceRole.entities.Event.create({
         event_type: 'funds_deposited', // Using as positive system event
@@ -756,6 +814,24 @@ Deno.serve(async (req) => {
         treasury_ready: true,
         sweep_enabled: true
       });
+    }
+
+    // GET tracked addresses
+    if (action === 'get_tracked_addresses') {
+      const { chain, owner_type, purpose, limit = 100 } = body;
+      
+      const filter = {};
+      if (chain) filter.chain = chain;
+      if (owner_type) filter.owner_type = owner_type;
+      if (purpose) filter.purpose = purpose;
+
+      const addresses = await base44.asServiceRole.entities.TrackedAddress.filter(
+        filter,
+        '-created_date',
+        limit
+      );
+
+      return Response.json({ addresses });
     }
 
     return Response.json({ error: 'Unknown action' }, { status: 400 });
