@@ -52,11 +52,11 @@ import Dashboard from './pages/Dashboard';
 import Events from './pages/Events';
 import Home from './pages/Home';
 import HumanPortal from './pages/HumanPortal';
+import ProtocolRevenue from './pages/ProtocolRevenue';
 import ReviewQueue from './pages/ReviewQueue';
 import Submissions from './pages/Submissions';
 import Tasks from './pages/Tasks';
 import Workers from './pages/Workers';
-import ProtocolRevenue from './pages/ProtocolRevenue';
 
 
 export const PAGES = {
@@ -65,11 +65,11 @@ export const PAGES = {
     "Events": Events,
     "Home": Home,
     "HumanPortal": HumanPortal,
+    "ProtocolRevenue": ProtocolRevenue,
     "ReviewQueue": ReviewQueue,
     "Submissions": Submissions,
     "Tasks": Tasks,
     "Workers": Workers,
-    "ProtocolRevenue": ProtocolRevenue,
 }
 
 export const pagesConfig = {

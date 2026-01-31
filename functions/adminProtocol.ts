@@ -416,6 +416,23 @@ Deno.serve(async (req) => {
       return Response.json({ sweeps });
     }
 
+    // GET single sweep by ID
+    if (action === 'get_sweep') {
+      const { sweep_id } = body;
+
+      if (!sweep_id) {
+        return Response.json({ error: 'sweep_id required' }, { status: 400 });
+      }
+
+      const sweeps = await base44.asServiceRole.entities.Sweep.filter({ id: sweep_id });
+
+      if (sweeps.length === 0) {
+        return Response.json({ error: 'Sweep not found' }, { status: 404 });
+      }
+
+      return Response.json({ sweep: sweeps[0] });
+    }
+
     return Response.json({ error: 'Unknown action' }, { status: 400 });
   } catch (error) {
     console.error('Admin protocol error:', error);

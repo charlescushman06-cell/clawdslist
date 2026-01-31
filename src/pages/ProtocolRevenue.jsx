@@ -11,13 +11,17 @@ import {
   Clock,
   ArrowUpRight,
   RefreshCw,
-  ChevronRight
+  ChevronRight,
+  Send,
+  ExternalLink
 } from 'lucide-react';
 import { format, subDays, subHours } from 'date-fns';
 
 export default function ProtocolRevenue() {
   const [chainFilter, setChainFilter] = useState('all');
   const [limit, setLimit] = useState(50);
+  const [sweepChainFilter, setSweepChainFilter] = useState('all');
+  const [sweepStatusFilter, setSweepStatusFilter] = useState('all');
 
   const { data: balances, isLoading: balancesLoading, refetch: refetchBalances } = useQuery({
     queryKey: ['protocol-balances'],
@@ -51,9 +55,23 @@ export default function ProtocolRevenue() {
     }
   });
 
+  const { data: sweepsData, isLoading: sweepsLoading, refetch: refetchSweeps } = useQuery({
+    queryKey: ['protocol-sweeps', sweepChainFilter, sweepStatusFilter],
+    queryFn: async () => {
+      const response = await base44.functions.invoke('adminProtocol', {
+        action: 'list_sweeps',
+        chain: sweepChainFilter === 'all' ? undefined : sweepChainFilter,
+        status: sweepStatusFilter === 'all' ? undefined : sweepStatusFilter,
+        limit: 50
+      });
+      return response.data;
+    }
+  });
+
   const handleRefresh = () => {
     refetchBalances();
     refetchLedger();
+    refetchSweeps();
   };
 
   const formatAmount = (amount) => {
@@ -172,6 +190,119 @@ export default function ProtocolRevenue() {
               +{formatAmount(statsData?.last_7d || '0')}
             </p>
             <p className="text-xs text-slate-500 mt-1">USD accrued</p>
+          </div>
+        </div>
+
+        {/* Sweep History */}
+        <div className="bg-slate-950 border border-red-900/50 rounded-lg mb-8">
+          <div className="flex items-center justify-between p-4 border-b border-red-900/30">
+            <div className="flex items-center gap-2">
+              <Send className="w-4 h-4 text-red-500" />
+              <h3 className="text-sm uppercase tracking-wider text-slate-400">Sweep History</h3>
+            </div>
+            <div className="flex items-center gap-3">
+              <Select value={sweepChainFilter} onValueChange={setSweepChainFilter}>
+                <SelectTrigger className="w-28 bg-slate-900 border-red-900/50 text-slate-100 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-red-900/50">
+                  <SelectItem value="all" className="text-slate-100">All Chains</SelectItem>
+                  <SelectItem value="ETH" className="text-slate-100">ETH</SelectItem>
+                  <SelectItem value="BTC" className="text-slate-100">BTC</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={sweepStatusFilter} onValueChange={setSweepStatusFilter}>
+                <SelectTrigger className="w-32 bg-slate-900 border-red-900/50 text-slate-100 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-red-900/50">
+                  <SelectItem value="all" className="text-slate-100">All Status</SelectItem>
+                  <SelectItem value="requested" className="text-slate-100">Requested</SelectItem>
+                  <SelectItem value="broadcasted" className="text-slate-100">Broadcasted</SelectItem>
+                  <SelectItem value="confirmed" className="text-slate-100">Confirmed</SelectItem>
+                  <SelectItem value="failed" className="text-slate-100">Failed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-red-900/30 bg-slate-950">
+                  <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Date</th>
+                  <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Chain</th>
+                  <th className="text-right p-4 text-xs uppercase tracking-wider text-slate-500">Amount</th>
+                  <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Destination</th>
+                  <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Status</th>
+                  <th className="text-left p-4 text-xs uppercase tracking-wider text-slate-500">Tx Hash</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-red-900/30">
+                {sweepsLoading ? (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-slate-500">Loading...</td>
+                  </tr>
+                ) : sweepsData?.sweeps?.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-slate-500">No sweeps yet</td>
+                  </tr>
+                ) : (
+                  sweepsData?.sweeps?.map(sweep => (
+                    <tr key={sweep.id} className="hover:bg-slate-900/30 transition-colors">
+                      <td className="p-4 text-sm text-slate-300">
+                        {format(new Date(sweep.created_date), 'MMM d, HH:mm')}
+                      </td>
+                      <td className="p-4">
+                        <span className={`px-2 py-1 text-xs rounded ${
+                          sweep.chain === 'ETH' 
+                            ? 'bg-blue-900/30 text-blue-400' 
+                            : 'bg-amber-900/30 text-amber-400'
+                        }`}>
+                          {sweep.chain}
+                        </span>
+                      </td>
+                      <td className="p-4 text-right">
+                        <span className="text-red-400 font-mono text-sm">
+                          -{formatAmount(sweep.amount)}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <span className="text-xs text-slate-500 font-mono">
+                          {sweep.destination_address?.slice(0, 10)}...{sweep.destination_address?.slice(-6)}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <span className={`px-2 py-1 text-xs rounded ${
+                          sweep.status === 'confirmed' ? 'bg-emerald-900/30 text-emerald-400' :
+                          sweep.status === 'broadcasted' ? 'bg-blue-900/30 text-blue-400' :
+                          sweep.status === 'failed' ? 'bg-red-900/30 text-red-400' :
+                          'bg-amber-900/30 text-amber-400'
+                        }`}>
+                          {sweep.status}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        {sweep.tx_hash ? (
+                          <a 
+                            href={sweep.chain === 'ETH' 
+                              ? `https://etherscan.io/tx/${sweep.tx_hash}` 
+                              : `https://blockstream.info/tx/${sweep.tx_hash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-red-400 text-xs hover:text-red-300 flex items-center gap-1 font-mono"
+                          >
+                            {sweep.tx_hash.slice(0, 10)}... <ExternalLink className="w-3 h-3" />
+                          </a>
+                        ) : (
+                          <span className="text-xs text-slate-600">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 

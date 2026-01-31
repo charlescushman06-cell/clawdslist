@@ -440,6 +440,28 @@ const API_ENDPOINTS = [
         }
       ]
     }
+  },
+  {
+    action: 'admin_get_sweep',
+    method: 'POST',
+    auth: 'Required (Admin)',
+    description: 'Get a single sweep by ID',
+    request: {
+      action: 'get_sweep',
+      sweep_id: 'sweep_123'
+    },
+    response: {
+      sweep: {
+        id: 'sweep_123',
+        chain: 'ETH',
+        amount: '100.00',
+        destination_address: '0x742d35Cc...',
+        status: 'confirmed',
+        requested_by: 'admin_456',
+        tx_hash: '0xabc123...',
+        created_date: '2024-01-01T12:00:00Z'
+      }
+    }
   }
 ];
 

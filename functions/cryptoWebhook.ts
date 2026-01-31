@@ -328,6 +328,187 @@ async function handleWithdrawalFailed(base44, payload) {
   console.log(`Withdrawal failed for worker ${worker_id}: ${reason}`);
 }
 
+// Decimal-safe math helpers
+function toScaled(amount) {
+  if (!amount) return 0n;
+  if (typeof amount === 'string') {
+    const [whole, frac = ''] = amount.split('.');
+    const paddedFrac = frac.padEnd(18, '0').slice(0, 18);
+    return BigInt(whole + paddedFrac);
+  }
+  return BigInt(Math.round(Number(amount) * 1e18));
+}
+
+function fromScaled(scaled) {
+  const str = scaled.toString().padStart(19, '0');
+  const whole = str.slice(0, -18) || '0';
+  const frac = str.slice(-18).replace(/0+$/, '') || '0';
+  return frac === '0' ? whole : `${whole}.${frac}`;
+}
+
+function subtractDecimal(a, b) {
+  const result = toScaled(a) - toScaled(b);
+  return fromScaled(result < 0n ? 0n : result);
+}
+
+function addDecimal(a, b) {
+  return fromScaled(toScaled(a) + toScaled(b));
+}
+
+async function handleSweepConfirmed(base44, payload) {
+  const { txid, chain, amount, confirmations } = payload;
+
+  // Find sweep by tx_hash
+  const sweeps = await base44.asServiceRole.entities.Sweep.filter({
+    tx_hash: txid,
+    status: 'broadcasted'
+  });
+
+  if (sweeps.length === 0) {
+    console.log(`No matching sweep found for txid: ${txid}`);
+    return;
+  }
+
+  const sweep = sweeps[0];
+
+  // Update sweep to confirmed
+  await base44.asServiceRole.entities.Sweep.update(sweep.id, {
+    status: 'confirmed'
+  });
+
+  // Permanently deduct locked_balance from protocol account
+  const accounts = await base44.asServiceRole.entities.LedgerAccount.filter({
+    owner_type: 'protocol',
+    chain: sweep.chain
+  });
+
+  if (accounts.length > 0) {
+    const protocolAccount = accounts[0];
+    const newLocked = subtractDecimal(protocolAccount.locked_balance || '0', sweep.amount);
+
+    await base44.asServiceRole.entities.LedgerAccount.update(protocolAccount.id, {
+      locked_balance: newLocked
+    });
+
+    // Create permanent deduction ledger entry
+    await base44.asServiceRole.entities.LedgerEntry.create({
+      chain: sweep.chain,
+      amount: sweep.amount,
+      entry_type: 'payout',
+      from_owner_type: 'protocol',
+      from_owner_id: null,
+      to_owner_type: null,
+      to_owner_id: null,
+      metadata: JSON.stringify({
+        sweep_id: sweep.id,
+        tx_hash: txid,
+        destination_address: sweep.destination_address,
+        action: 'protocol_fee_sweep_confirmed',
+        confirmations
+      })
+    });
+  }
+
+  // Emit confirmed event
+  await base44.asServiceRole.entities.Event.create({
+    event_type: 'funds_withdrawn',
+    entity_type: 'transaction',
+    entity_id: sweep.id,
+    actor_type: 'system',
+    actor_id: 'crypto_provider',
+    details: JSON.stringify({
+      stage: 'protocol_fee_sweep_confirmed',
+      chain: sweep.chain,
+      amount: sweep.amount,
+      destination_address: sweep.destination_address,
+      sweep_id: sweep.id,
+      tx_hash: txid,
+      confirmations,
+      provider: 'tatum'
+    })
+  });
+
+  console.log(`Sweep confirmed: ${sweep.amount} ${sweep.chain} to ${sweep.destination_address}, tx: ${txid}`);
+}
+
+async function handleSweepFailed(base44, payload) {
+  const { txid, chain, reason } = payload;
+
+  // Find sweep by tx_hash
+  const sweeps = await base44.asServiceRole.entities.Sweep.filter({
+    tx_hash: txid,
+    status: 'broadcasted'
+  });
+
+  if (sweeps.length === 0) {
+    console.log(`No matching sweep found for failed txid: ${txid}`);
+    return;
+  }
+
+  const sweep = sweeps[0];
+
+  // Update sweep to failed
+  await base44.asServiceRole.entities.Sweep.update(sweep.id, {
+    status: 'failed',
+    failure_reason: reason || 'Transaction failed on-chain'
+  });
+
+  // Return locked funds to available
+  const accounts = await base44.asServiceRole.entities.LedgerAccount.filter({
+    owner_type: 'protocol',
+    chain: sweep.chain
+  });
+
+  if (accounts.length > 0) {
+    const protocolAccount = accounts[0];
+    const newAvailable = addDecimal(protocolAccount.available_balance || '0', sweep.amount);
+    const newLocked = subtractDecimal(protocolAccount.locked_balance || '0', sweep.amount);
+
+    await base44.asServiceRole.entities.LedgerAccount.update(protocolAccount.id, {
+      available_balance: newAvailable,
+      locked_balance: newLocked
+    });
+
+    // Create unlock ledger entry
+    await base44.asServiceRole.entities.LedgerEntry.create({
+      chain: sweep.chain,
+      amount: sweep.amount,
+      entry_type: 'unlock',
+      from_owner_type: 'protocol',
+      from_owner_id: null,
+      to_owner_type: 'protocol',
+      to_owner_id: null,
+      metadata: JSON.stringify({
+        sweep_id: sweep.id,
+        tx_hash: txid,
+        action: 'protocol_fee_sweep_failed_rollback',
+        reason: reason || 'Transaction failed on-chain'
+      })
+    });
+  }
+
+  // Emit failed event
+  await base44.asServiceRole.entities.Event.create({
+    event_type: 'system_error',
+    entity_type: 'transaction',
+    entity_id: sweep.id,
+    actor_type: 'system',
+    actor_id: 'crypto_provider',
+    details: JSON.stringify({
+      stage: 'protocol_fee_sweep_failed',
+      chain: sweep.chain,
+      amount: sweep.amount,
+      destination_address: sweep.destination_address,
+      sweep_id: sweep.id,
+      tx_hash: txid,
+      reason: reason || 'Transaction failed on-chain',
+      provider: 'tatum'
+    })
+  });
+
+  console.log(`Sweep failed: ${sweep.id}, reason: ${reason}`);
+}
+
 Deno.serve(async (req) => {
   try {
     const signature = req.headers.get('x-tatum-signature');
@@ -357,6 +538,16 @@ Deno.serve(async (req) => {
       
       case 'withdrawal_failed':
         await handleWithdrawalFailed(base44, payload.data);
+        break;
+
+      case 'sweep_confirmed':
+      case 'outgoing_confirmed':
+        await handleSweepConfirmed(base44, payload.data);
+        break;
+
+      case 'sweep_failed':
+      case 'outgoing_failed':
+        await handleSweepFailed(base44, payload.data);
         break;
       
       default:
