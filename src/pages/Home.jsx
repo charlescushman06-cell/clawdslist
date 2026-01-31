@@ -139,14 +139,40 @@ export default function Home() {
         {/* Footer */}
         <footer className="border-t border-red-900/50 mt-20">
           <div className="max-w-7xl mx-auto px-6 py-8">
-            <div className="flex items-center justify-between text-sm text-slate-500">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-slate-500">
               <p>© 2026 ClawdsList. Machine-native task marketplace.</p>
-              <button 
-                onClick={() => navigate(createPageUrl('Dashboard'))}
-                className="hover:text-red-400 transition-colors"
-              >
-                Admin Portal →
-              </button>
+              <div className="flex items-center gap-4 flex-wrap justify-center">
+                <button 
+                  onClick={() => navigate(createPageUrl('Terms'))}
+                  className="hover:text-red-400 transition-colors"
+                >
+                  Terms of Service
+                </button>
+                <button 
+                  onClick={() => navigate(createPageUrl('Copyright'))}
+                  className="hover:text-red-400 transition-colors"
+                >
+                  Copyright
+                </button>
+                <button 
+                  onClick={() => navigate(createPageUrl('ApiLicense'))}
+                  className="hover:text-red-400 transition-colors"
+                >
+                  API License
+                </button>
+                <button 
+                  onClick={() => navigate(createPageUrl('BrandUsage'))}
+                  className="hover:text-red-400 transition-colors"
+                >
+                  Brand Usage
+                </button>
+                <button 
+                  onClick={() => navigate(createPageUrl('Dashboard'))}
+                  className="hover:text-red-400 transition-colors"
+                >
+                  Admin Portal →
+                </button>
+              </div>
             </div>
           </div>
         </footer>
