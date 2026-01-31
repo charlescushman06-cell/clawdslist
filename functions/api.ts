@@ -788,16 +788,21 @@ Deno.serve(async (req) => {
         return frac === '0' ? whole : `${whole}.${frac}`;
       };
 
+      // Approximate crypto prices (in production, fetch from price feed)
+      const CRYPTO_PRICES = { ETH: 3300, BTC: 95000 };
+      const cryptoPrice = CRYPTO_PRICES[chain] || 3300;
+
       // Determine withdrawal amount in crypto
       let withdrawAmount = amount;
       if (!withdrawAmount && amount_usd) {
-        // Legacy: If only USD provided, treat it as a very small crypto amount for backwards compat
-        // In production, you'd want a price feed here
-        withdrawAmount = String(amount_usd);
+        // Convert USD to crypto amount
+        const amountInCrypto = parseFloat(amount_usd) / cryptoPrice;
+        withdrawAmount = amountInCrypto.toFixed(18).replace(/\.?0+$/, '');
       }
 
       if (toScaled(withdrawAmount) > toScaled(availableBalance)) {
-        return errorResponse('INSUFFICIENT_BALANCE', `Available: ${availableBalance} ${chain}, requested: ${withdrawAmount} ${chain}`);
+        const balanceUsd = (parseFloat(availableBalance) * cryptoPrice).toFixed(2);
+        return errorResponse('INSUFFICIENT_BALANCE', `Available: ${availableBalance} ${chain} (~$${balanceUsd}), requested: ${withdrawAmount} ${chain}`);
       }
 
       // Lock funds: available -> locked
