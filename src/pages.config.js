@@ -56,6 +56,7 @@ import ReviewQueue from './pages/ReviewQueue';
 import Submissions from './pages/Submissions';
 import Tasks from './pages/Tasks';
 import Workers from './pages/Workers';
+import ProtocolRevenue from './pages/ProtocolRevenue';
 
 
 export const PAGES = {
@@ -68,6 +69,7 @@ export const PAGES = {
     "Submissions": Submissions,
     "Tasks": Tasks,
     "Workers": Workers,
+    "ProtocolRevenue": ProtocolRevenue,
 }
 
 export const pagesConfig = {

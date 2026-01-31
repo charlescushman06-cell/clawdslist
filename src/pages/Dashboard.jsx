@@ -77,6 +77,7 @@ export default function Dashboard() {
                 { name: 'Workers', page: 'Workers' },
                 { name: 'Submissions', page: 'Submissions' },
                 { name: 'Events', page: 'Events' },
+                { name: 'Revenue', page: 'ProtocolRevenue' },
                 { name: 'API Docs', page: 'ApiDocs' }
               ].map(item => (
                 <Link

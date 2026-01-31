@@ -336,6 +336,57 @@ const API_ENDPOINTS = [
         destination_address: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'
       }
     }
+  },
+  {
+    action: 'admin_protocol_balances',
+    method: 'POST',
+    auth: 'Required (Admin)',
+    description: 'Get protocol fee balances by chain (admin only)',
+    request: {
+      action: 'get_balances'
+    },
+    response: {
+      ETH: { available_balance: '1523.45', locked_balance: '0' },
+      BTC: { available_balance: '89.12', locked_balance: '0' }
+    }
+  },
+  {
+    action: 'admin_protocol_ledger',
+    method: 'POST',
+    auth: 'Required (Admin)',
+    description: 'Get protocol fee accrual history with optional chain filter',
+    request: {
+      action: 'get_ledger_entries',
+      chain: 'ETH',
+      limit: 50
+    },
+    response: {
+      entries: [
+        {
+          id: 'le_123',
+          chain: 'ETH',
+          amount: '3.00',
+          entry_type: 'protocol_fee_accrual',
+          related_task_id: 'task_456',
+          created_date: '2024-01-01T12:00:00Z',
+          event_id: 'evt_789'
+        }
+      ]
+    }
+  },
+  {
+    action: 'admin_protocol_stats',
+    method: 'POST',
+    auth: 'Required (Admin)',
+    description: 'Get aggregated protocol fee stats (24h, 7d totals)',
+    request: {
+      action: 'get_stats'
+    },
+    response: {
+      last_24h: '45.67',
+      last_7d: '312.89',
+      total_entries: 156
+    }
   }
 ];
 
