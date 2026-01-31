@@ -1,283 +1,379 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-const REQUIRED_CONFIRMATIONS = {
-  'ETH': 12,
-  'BTC': 3
+const TATUM_API_KEY = Deno.env.get('TATUM_API_KEY_MAINNET') || Deno.env.get('TATUM_API_KEY');
+const TATUM_TESTNET = Deno.env.get('TATUM_TESTNET') === 'true';
+
+// Confirmation thresholds per chain
+const CONFIRMATION_THRESHOLDS = {
+  ETH: 12,
+  BTC: 3
 };
 
-const EXCHANGE_RATES = {
-  'ETH': 3000,
-  'BTC': 45000
-};
-
-async function queryTatumTransactions(address, chain) {
-  const apiKey = Deno.env.get('TATUM_API_KEY');
-  if (!apiKey) {
-    throw new Error('TATUM_API_KEY not configured');
-  }
-
-  const baseUrl = 'https://api.tatum.io/v3';
-  const response = await fetch(
-    `${baseUrl}/blockchain/transaction/address/${chain}/${address}?pageSize=50`,
-    {
-      headers: {
-        'x-api-key': apiKey,
-        'Content-Type': 'application/json'
-      }
+// Decimal math helpers
+function addDecimal(a, b) {
+  const toScaled = (amt) => {
+    if (!amt) return 0n;
+    if (typeof amt === 'string') {
+      const [whole, frac = ''] = amt.split('.');
+      return BigInt(whole + frac.padEnd(18, '0').slice(0, 18));
     }
-  );
-
-  if (!response.ok) {
-    throw new Error(`Tatum API error: ${await response.text()}`);
-  }
-
-  return await response.json();
+    return BigInt(Math.round(Number(amt) * 1e18));
+  };
+  const fromScaled = (scaled) => {
+    const str = scaled.toString().padStart(19, '0');
+    const whole = str.slice(0, -18) || '0';
+    const frac = str.slice(-18).replace(/0+$/, '') || '0';
+    return frac === '0' ? whole : `${whole}.${frac}`;
+  };
+  return fromScaled(toScaled(a) + toScaled(b));
 }
 
-async function reconcileAddress(base44, workerId, address, chain) {
-  let reconciledCount = 0;
-  let creditedCount = 0;
+/**
+ * Fetch transactions for an address from Tatum
+ */
+async function fetchAddressTransactions(chain, address, pageSize = 50) {
+  const tatumChain = chain === 'ETH'
+    ? (TATUM_TESTNET ? 'ethereum-sepolia' : 'ethereum')
+    : (TATUM_TESTNET ? 'bitcoin-testnet' : 'bitcoin');
 
-  try {
-    // Query Tatum for recent transactions
-    const transactions = await queryTatumTransactions(address, chain);
+  let transactions = [];
 
-    for (const tx of transactions) {
-      const txid = tx.hash;
-      const amount = tx.amount;
-      const confirmations = tx.confirmations || 0;
-
-      // Check if PendingDeposit exists
-      const existing = await base44.asServiceRole.entities.PendingDeposit.filter({
-        chain,
-        txid,
-        address
-      });
-
-      if (existing.length === 0) {
-        // Missing transaction - create PendingDeposit
-        const amountUSD = parseFloat(amount) * EXCHANGE_RATES[chain];
-        const requiredConf = REQUIRED_CONFIRMATIONS[chain];
-        const status = confirmations >= requiredConf ? 'confirmed' : (confirmations > 0 ? 'confirming' : 'detected');
-
-        const newDeposit = await base44.asServiceRole.entities.PendingDeposit.create({
-          worker_id: workerId,
-          chain,
-          address,
-          txid,
-          amount,
-          amount_usd: amountUSD,
-          confirmations,
-          required_confirmations: requiredConf,
-          status,
-          raw_provider_payload: JSON.stringify({ source: 'reconciliation', tx })
-        });
-
-        reconciledCount++;
-
-        // Log reconciliation event
-        await base44.asServiceRole.entities.Event.create({
-          event_type: 'funds_deposited',
-          entity_type: 'worker',
-          entity_id: workerId,
-          actor_type: 'system',
-          actor_id: 'reconciliation',
-          details: JSON.stringify({
-            stage: 'deposit_reconciled',
-            chain,
-            address,
-            txid,
-            amount,
-            amount_usd: amountUSD,
-            confirmations,
-            status,
-            provider: 'tatum'
-          })
-        });
-
-        // Credit if already confirmed
-        if (status === 'confirmed') {
-          const worker = await base44.asServiceRole.entities.Worker.get(workerId);
-
-          await base44.asServiceRole.entities.Worker.update(workerId, {
-            available_balance_usd: (worker.available_balance_usd || 0) + amountUSD,
-            total_deposited_usd: (worker.total_deposited_usd || 0) + amountUSD
-          });
-
-          await base44.asServiceRole.entities.Transaction.create({
-            transaction_type: 'deposit',
-            worker_id: workerId,
-            amount_usd: amountUSD,
-            balance_type: 'available',
-            status: 'completed',
-            metadata: JSON.stringify({
-              chain,
-              crypto_amount: amount,
-              txid,
-              address,
-              confirmations,
-              reconciled: true,
-              provider: 'tatum'
-            }),
-            notes: `${chain} deposit credited (reconciled)`
-          });
-
-          await base44.asServiceRole.entities.PendingDeposit.update(newDeposit.id, {
-            status: 'credited'
-          });
-
-          await base44.asServiceRole.entities.Event.create({
-            event_type: 'funds_deposited',
-            entity_type: 'worker',
-            entity_id: workerId,
-            actor_type: 'system',
-            actor_id: 'reconciliation',
-            details: JSON.stringify({
-              stage: 'ledger_credited_from_reconciliation',
-              chain,
-              address,
-              txid,
-              amount,
-              amount_usd: amountUSD,
-              confirmations,
-              provider: 'tatum'
-            })
-          });
-
-          creditedCount++;
-        }
-      } else {
-        // Existing transaction - update confirmations
-        const deposit = existing[0];
-
-        // Skip if already credited (idempotency)
-        if (deposit.status === 'credited') {
-          continue;
-        }
-
-        // Update confirmations if changed
-        if (deposit.confirmations !== confirmations) {
-          const requiredConf = REQUIRED_CONFIRMATIONS[chain];
-          const newStatus = confirmations >= requiredConf ? 'confirmed' : 
-                           (confirmations > 0 ? 'confirming' : 'detected');
-
-          await base44.asServiceRole.entities.PendingDeposit.update(deposit.id, {
-            confirmations,
-            status: newStatus
-          });
-
-          reconciledCount++;
-
-          // Credit if newly confirmed
-          if (newStatus === 'confirmed' && deposit.status !== 'confirmed' && deposit.worker_id) {
-            const worker = await base44.asServiceRole.entities.Worker.get(deposit.worker_id);
-
-            await base44.asServiceRole.entities.Worker.update(deposit.worker_id, {
-              available_balance_usd: (worker.available_balance_usd || 0) + deposit.amount_usd,
-              total_deposited_usd: (worker.total_deposited_usd || 0) + deposit.amount_usd
+  if (chain === 'ETH') {
+    // ETH: Get transaction history
+    const response = await fetch(
+      `https://api.tatum.io/v3/${tatumChain}/account/transaction/${address}?pageSize=${pageSize}`,
+      {
+        headers: { 'x-api-key': TATUM_API_KEY }
+      }
+    );
+    if (response.ok) {
+      const data = await response.json();
+      // Filter for incoming transactions
+      transactions = (data || []).filter(tx => 
+        tx.to?.toLowerCase() === address.toLowerCase() && tx.value && parseFloat(tx.value) > 0
+      ).map(tx => ({
+        txHash: tx.hash || tx.txId,
+        amount: tx.value,
+        confirmations: tx.blockNumber ? 999 : 0, // If mined, assume confirmed
+        from: tx.from
+      }));
+    }
+  } else if (chain === 'BTC') {
+    // BTC: Get UTXOs/transactions
+    const response = await fetch(
+      `https://api.tatum.io/v3/${tatumChain}/transaction/address/${address}?pageSize=${pageSize}`,
+      {
+        headers: { 'x-api-key': TATUM_API_KEY }
+      }
+    );
+    if (response.ok) {
+      const data = await response.json();
+      // Process BTC transactions - find outputs to our address
+      for (const tx of data || []) {
+        const outputs = tx.outputs || tx.vout || [];
+        for (const out of outputs) {
+          const outAddr = out.address || (out.scriptPubKey?.addresses?.[0]);
+          if (outAddr === address && out.value) {
+            transactions.push({
+              txHash: tx.hash || tx.txId,
+              amount: out.value.toString(),
+              confirmations: tx.confirmations || 0,
+              from: 'btc_sender'
             });
-
-            await base44.asServiceRole.entities.Transaction.create({
-              transaction_type: 'deposit',
-              worker_id: deposit.worker_id,
-              amount_usd: deposit.amount_usd,
-              balance_type: 'available',
-              status: 'completed',
-              metadata: JSON.stringify({
-                chain,
-                crypto_amount: deposit.amount,
-                txid,
-                address,
-                confirmations,
-                reconciled: true,
-                provider: 'tatum'
-              }),
-              notes: `${chain} deposit credited (reconciled confirmation update)`
-            });
-
-            await base44.asServiceRole.entities.PendingDeposit.update(deposit.id, {
-              status: 'credited'
-            });
-
-            await base44.asServiceRole.entities.Event.create({
-              event_type: 'funds_deposited',
-              entity_type: 'worker',
-              entity_id: deposit.worker_id,
-              actor_type: 'system',
-              actor_id: 'reconciliation',
-              details: JSON.stringify({
-                stage: 'ledger_credited_from_reconciliation',
-                chain,
-                address,
-                txid,
-                amount: deposit.amount,
-                amount_usd: deposit.amount_usd,
-                confirmations,
-                provider: 'tatum'
-              })
-            });
-
-            creditedCount++;
           }
         }
       }
     }
-  } catch (error) {
-    console.error(`Error reconciling ${chain} address ${address}:`, error.message);
   }
 
-  return { reconciledCount, creditedCount };
+  return transactions;
+}
+
+/**
+ * Process a single deposit (shared logic with webhook)
+ */
+async function processDeposit(base44, chain, address, txHash, amount, confirmations, ownerType, ownerId) {
+  const now = new Date().toISOString();
+  const threshold = CONFIRMATION_THRESHOLDS[chain];
+
+  // Check if deposit already exists
+  const existing = await base44.asServiceRole.entities.PendingDeposit.filter({
+    chain,
+    tx_hash: txHash
+  });
+
+  let deposit;
+  let isNew = false;
+  let wasCredited = false;
+
+  if (existing.length > 0) {
+    deposit = existing[0];
+
+    // Already credited - skip
+    if (deposit.status === 'credited') {
+      return { deposit, isNew: false, credited: false, skipped: true };
+    }
+
+    // Update confirmations if changed
+    const newStatus = confirmations >= threshold ? 'credited' :
+                      confirmations > 0 ? 'confirming' : 'seen';
+
+    if (confirmations !== deposit.confirmations || newStatus !== deposit.status) {
+      await base44.asServiceRole.entities.PendingDeposit.update(deposit.id, {
+        confirmations,
+        status: newStatus
+      });
+      deposit.confirmations = confirmations;
+      deposit.status = newStatus;
+    }
+  } else {
+    // New deposit
+    isNew = true;
+    const initialStatus = confirmations >= threshold ? 'credited' :
+                         confirmations > 0 ? 'confirming' : 'seen';
+
+    deposit = await base44.asServiceRole.entities.PendingDeposit.create({
+      chain,
+      address,
+      tx_hash: txHash,
+      amount,
+      confirmations,
+      status: initialStatus,
+      owner_type: ownerType,
+      owner_id: ownerId,
+      first_seen_at: now,
+      raw_payload: JSON.stringify({ source: 'reconciliation', detected_at: now })
+    });
+
+    await base44.asServiceRole.entities.Event.create({
+      event_type: 'deposit_seen',
+      entity_type: 'deposit',
+      entity_id: txHash,
+      actor_type: 'system',
+      actor_id: 'reconciler',
+      details: JSON.stringify({
+        chain,
+        address,
+        tx_hash: txHash,
+        amount,
+        confirmations,
+        threshold,
+        status: deposit.status,
+        owner_type: ownerType,
+        owner_id: ownerId,
+        source: 'reconciliation'
+      })
+    });
+  }
+
+  // Credit if threshold reached and not yet credited
+  if (confirmations >= threshold && (isNew || existing[0]?.status !== 'credited')) {
+    wasCredited = true;
+
+    if (ownerType === 'worker' && ownerId) {
+      // Credit worker's LedgerAccount
+      const workerAccounts = await base44.asServiceRole.entities.LedgerAccount.filter({
+        owner_type: 'worker',
+        owner_id: ownerId,
+        chain
+      });
+
+      if (workerAccounts.length > 0) {
+        const account = workerAccounts[0];
+        const newBalance = addDecimal(account.available_balance || '0', amount);
+        await base44.asServiceRole.entities.LedgerAccount.update(account.id, {
+          available_balance: newBalance
+        });
+      } else {
+        await base44.asServiceRole.entities.LedgerAccount.create({
+          owner_type: 'worker',
+          owner_id: ownerId,
+          chain,
+          available_balance: amount,
+          locked_balance: '0'
+        });
+      }
+
+      await base44.asServiceRole.entities.LedgerEntry.create({
+        chain,
+        amount,
+        entry_type: 'deposit_credited',
+        from_owner_type: null,
+        from_owner_id: null,
+        to_owner_type: 'worker',
+        to_owner_id: ownerId,
+        metadata: JSON.stringify({
+          tx_hash: txHash,
+          address,
+          confirmations,
+          deposit_id: deposit.id,
+          source: 'reconciliation'
+        })
+      });
+
+    } else if (ownerType === 'protocol') {
+      // Credit protocol account (informational)
+      const protocolAccounts = await base44.asServiceRole.entities.LedgerAccount.filter({
+        owner_type: 'protocol',
+        chain
+      });
+
+      if (protocolAccounts.length > 0) {
+        const account = protocolAccounts[0];
+        const newBalance = addDecimal(account.available_balance || '0', amount);
+        await base44.asServiceRole.entities.LedgerAccount.update(account.id, {
+          available_balance: newBalance
+        });
+      } else {
+        await base44.asServiceRole.entities.LedgerAccount.create({
+          owner_type: 'protocol',
+          owner_id: null,
+          chain,
+          available_balance: amount,
+          locked_balance: '0'
+        });
+      }
+
+      await base44.asServiceRole.entities.LedgerEntry.create({
+        chain,
+        amount,
+        entry_type: 'deposit_credited',
+        from_owner_type: null,
+        from_owner_id: null,
+        to_owner_type: 'protocol',
+        to_owner_id: null,
+        metadata: JSON.stringify({
+          tx_hash: txHash,
+          address,
+          confirmations,
+          deposit_id: deposit.id,
+          purpose: 'treasury_deposit',
+          source: 'reconciliation'
+        })
+      });
+    }
+
+    // Update status if not already set
+    if (!isNew) {
+      await base44.asServiceRole.entities.PendingDeposit.update(deposit.id, {
+        status: 'credited'
+      });
+    }
+
+    await base44.asServiceRole.entities.Event.create({
+      event_type: 'deposit_credited',
+      entity_type: 'deposit',
+      entity_id: txHash,
+      actor_type: 'system',
+      actor_id: 'reconciler',
+      details: JSON.stringify({
+        chain,
+        address,
+        tx_hash: txHash,
+        amount,
+        confirmations,
+        owner_type: ownerType,
+        owner_id: ownerId,
+        deposit_id: deposit.id,
+        source: 'reconciliation'
+      })
+    });
+  }
+
+  return { deposit, isNew, credited: wasCredited, skipped: false };
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== 'POST') {
+    return Response.json({ error: 'Method not allowed' }, { status: 405 });
+  }
+
   try {
     const base44 = createClientFromRequest(req);
+    const user = await base44.auth.me();
 
-    let totalReconciled = 0;
-    let totalCredited = 0;
-    const addressesChecked = [];
+    if (!user || user.role !== 'admin') {
+      return Response.json({ error: 'Admin access required' }, { status: 403 });
+    }
 
-    // Get all workers with crypto addresses
-    const workers = await base44.asServiceRole.entities.Worker.list();
+    if (!TATUM_API_KEY) {
+      return Response.json({ error: 'TATUM_API_KEY not configured' }, { status: 500 });
+    }
 
-    for (const worker of workers) {
-      // Reconcile ETH address
-      if (worker.eth_address) {
-        const result = await reconcileAddress(base44, worker.id, worker.eth_address, 'ETH');
-        totalReconciled += result.reconciledCount;
-        totalCredited += result.creditedCount;
-        addressesChecked.push({ chain: 'ETH', address: worker.eth_address, worker_id: worker.id });
-      }
+    const body = await req.json();
+    const { chain: filterChain, lookback_hours = 24 } = body;
 
-      // Reconcile BTC address
-      if (worker.btc_address) {
-        const result = await reconcileAddress(base44, worker.id, worker.btc_address, 'BTC');
-        totalReconciled += result.reconciledCount;
-        totalCredited += result.creditedCount;
-        addressesChecked.push({ chain: 'BTC', address: worker.btc_address, worker_id: worker.id });
+    const startTime = Date.now();
+    const results = {
+      addresses_checked: 0,
+      deposits_found: 0,
+      deposits_new: 0,
+      deposits_credited: 0,
+      errors: []
+    };
+
+    // Get tracked addresses
+    const filter = {};
+    if (filterChain && ['ETH', 'BTC'].includes(filterChain)) {
+      filter.chain = filterChain;
+    }
+
+    const trackedAddresses = await base44.asServiceRole.entities.TrackedAddress.filter(filter);
+    results.addresses_checked = trackedAddresses.length;
+
+    // Process each address
+    for (const tracked of trackedAddresses) {
+      try {
+        const transactions = await fetchAddressTransactions(tracked.chain, tracked.address);
+
+        for (const tx of transactions) {
+          results.deposits_found++;
+
+          const result = await processDeposit(
+            base44,
+            tracked.chain,
+            tracked.address,
+            tx.txHash,
+            tx.amount,
+            tx.confirmations,
+            tracked.owner_type,
+            tracked.owner_id
+          );
+
+          if (result.isNew) results.deposits_new++;
+          if (result.credited) results.deposits_credited++;
+        }
+      } catch (err) {
+        results.errors.push({
+          address: tracked.address,
+          chain: tracked.chain,
+          error: err.message
+        });
       }
     }
 
+    const duration_ms = Date.now() - startTime;
+
     // Log reconciliation run
     await base44.asServiceRole.entities.Event.create({
-      event_type: 'system_error',
-      entity_type: 'transaction',
-      entity_id: 'reconciliation',
-      actor_type: 'system',
-      actor_id: 'reconciliation',
+      event_type: 'system_error', // Using as system event
+      entity_type: 'system',
+      entity_id: 'reconciliation_run',
+      actor_type: 'admin',
+      actor_id: user.id,
       details: JSON.stringify({
-        stage: 'reconciliation_completed',
-        addresses_checked: addressesChecked.length,
-        deposits_reconciled: totalReconciled,
-        deposits_credited: totalCredited
+        action: 'reconcile_deposits',
+        filter_chain: filterChain || 'all',
+        lookback_hours,
+        ...results,
+        duration_ms
       })
     });
 
     return Response.json({
       success: true,
-      addresses_checked: addressesChecked.length,
-      deposits_reconciled: totalReconciled,
-      deposits_credited: totalCredited
+      ...results,
+      duration_ms
     });
 
   } catch (error) {

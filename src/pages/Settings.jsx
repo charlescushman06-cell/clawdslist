@@ -18,7 +18,8 @@ import {
   Copy,
   ArrowDownCircle,
   Clock,
-  ExternalLink
+  ExternalLink,
+  RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -92,6 +93,20 @@ export default function Settings() {
       setBtcAddress(treasuryConfig.btc_treasury_address || '');
     }
   }, [treasuryConfig]);
+
+  // Reconcile mutation
+  const reconcileMutation = useMutation({
+    mutationFn: async () => {
+      const res = await base44.functions.invoke('reconcileDeposits', {});
+      if (res.data.error) throw new Error(res.data.error);
+      return res.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['pending-deposits'] });
+      toast.success(`Reconciled: ${data.deposits_new} new, ${data.deposits_credited} credited`);
+    },
+    onError: (err) => toast.error(err.message || 'Reconciliation failed')
+  });
 
   // Save mutation
   const saveMutation = useMutation({
@@ -365,7 +380,21 @@ export default function Settings() {
               <h2 className="text-lg text-slate-100">Deposits</h2>
               <p className="text-xs text-slate-500">Incoming deposits from Tatum webhooks</p>
             </div>
-            <span className="ml-auto text-xs text-slate-500">{deposits.length} total</span>
+            <span className="text-xs text-slate-500">{deposits.length} total</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => reconcileMutation.mutate()}
+              disabled={reconcileMutation.isPending}
+              className="ml-auto border-red-900/50 text-slate-300 hover:bg-red-900/20"
+            >
+              {reconcileMutation.isPending ? (
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+              )}
+              Reconcile
+            </Button>
           </div>
 
           <div className="divide-y divide-red-900/30 max-h-80 overflow-y-auto">

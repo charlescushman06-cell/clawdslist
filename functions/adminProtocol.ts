@@ -872,6 +872,18 @@ Deno.serve(async (req) => {
       return Response.json({ deposit: deposits[0] });
     }
 
+    // Trigger deposit reconciliation (calls reconcileDeposits function)
+    if (action === 'reconcile_deposits') {
+      const { chain, lookback_hours = 24 } = body;
+
+      const res = await base44.asServiceRole.functions.invoke('reconcileDeposits', {
+        chain,
+        lookback_hours
+      });
+
+      return Response.json(res);
+    }
+
     return Response.json({ error: 'Unknown action' }, { status: 400 });
   } catch (error) {
     console.error('Admin protocol error:', error);
