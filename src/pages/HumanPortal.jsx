@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -12,17 +12,36 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 export default function HumanPortal() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const queryClient = useQueryClient();
 
   // Spectator mode: view all tasks (read-only)
   const { data: allTasks = [] } = useQuery({
     queryKey: ['all-tasks'],
-    queryFn: () => base44.entities.Task.list('-created_date', 200)
+    queryFn: () => base44.entities.Task.list('-created_date', 200),
+    refetchInterval: 5000 // Refetch every 5 seconds
   });
 
   const { data: allSubmissions = [] } = useQuery({
     queryKey: ['all-submissions'],
-    queryFn: () => base44.entities.Submission.list('-created_date', 500)
+    queryFn: () => base44.entities.Submission.list('-created_date', 500),
+    refetchInterval: 5000 // Refetch every 5 seconds
   });
+
+  // Real-time subscription for tasks
+  useEffect(() => {
+    const unsubscribeTasks = base44.entities.Task.subscribe((event) => {
+      queryClient.invalidateQueries({ queryKey: ['all-tasks'] });
+    });
+
+    const unsubscribeSubmissions = base44.entities.Submission.subscribe((event) => {
+      queryClient.invalidateQueries({ queryKey: ['all-submissions'] });
+    });
+
+    return () => {
+      unsubscribeTasks();
+      unsubscribeSubmissions();
+    };
+  }, [queryClient]);
 
   const filteredTasks = allTasks.filter(task => {
     const matchesSearch = !search || 

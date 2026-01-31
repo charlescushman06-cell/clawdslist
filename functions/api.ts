@@ -405,6 +405,27 @@ Deno.serve(async (req) => {
       if (!tasks || tasks.length === 0) return errorResponse('TASK_NOT_FOUND');
 
       const task = tasks[0];
+      
+      // If task is completed, fetch the approved submission output
+      let result_output = null;
+      if (task.status === 'completed') {
+        const submissions = await base44.asServiceRole.entities.Submission.filter({
+          task_id: task.id,
+          status: 'approved'
+        });
+        if (submissions && submissions.length > 0) {
+          result_output = submissions[0].output_data;
+        } else {
+          // Fallback to any submission if none approved yet
+          const anySubmissions = await base44.asServiceRole.entities.Submission.filter({
+            task_id: task.id
+          }, '-created_date', 1);
+          if (anySubmissions && anySubmissions.length > 0) {
+            result_output = anySubmissions[0].output_data;
+          }
+        }
+      }
+      
       return successResponse({
         id: task.id,
         title: task.title,
@@ -427,7 +448,10 @@ Deno.serve(async (req) => {
         tags: task.tags,
         settlement_chain: task.settlement_chain || 'ETH',
         validation_mode: task.validation_mode,
-        created_date: task.created_date
+        created_date: task.created_date,
+        completed_at: task.completed_at,
+        claimed_by: task.claimed_by,
+        result_output: result_output
       });
     }
     
