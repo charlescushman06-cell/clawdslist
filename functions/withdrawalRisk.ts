@@ -6,13 +6,33 @@ const CHAIN_CONFIG = {
     AUTO_WITHDRAW_MAX: Deno.env.get('AUTO_WITHDRAW_MAX_AMOUNT_ETH') || '0.02',
     DAILY_MAX: Deno.env.get('AUTO_WITHDRAW_DAILY_MAX_ETH') || '0.05',
     MIN_AMOUNT: Deno.env.get('MIN_WITHDRAW_AMOUNT_ETH') || '0.005',
-    CONFIRMATIONS: parseInt(Deno.env.get('CONFIRMATIONS_ETH') || '12', 10)
+    CONFIRMATIONS: parseInt(Deno.env.get('CONFIRMATIONS_ETH') || '12', 10),
+    // Circuit breaker
+    DISABLED: Deno.env.get('DISABLE_WITHDRAWALS_ETH') === 'true',
+    // Hot wallet outflow limits
+    HOT_WALLET_MAX_PER_HOUR: Deno.env.get('MAX_HOT_WALLET_OUTFLOW_PER_HOUR_ETH') || '0.5',
+    HOT_WALLET_MAX_PER_DAY: Deno.env.get('MAX_HOT_WALLET_OUTFLOW_PER_DAY_ETH') || '2.0',
+    // Velocity limits
+    MAX_WITHDRAWALS_PER_HOUR: parseInt(Deno.env.get('MAX_WITHDRAWALS_PER_HOUR_ETH') || '5', 10),
+    MAX_WITHDRAWALS_PER_DAY: parseInt(Deno.env.get('MAX_WITHDRAWALS_PER_DAY_ETH') || '20', 10),
+    // Per-destination limits
+    DEST_MAX_PER_DAY: Deno.env.get('DEST_MAX_PER_DAY_ETH') || '0.1'
   },
   BTC: {
     AUTO_WITHDRAW_MAX: Deno.env.get('AUTO_WITHDRAW_MAX_AMOUNT_BTC') || '0.0005',
     DAILY_MAX: Deno.env.get('AUTO_WITHDRAW_DAILY_MAX_BTC') || '0.001',
     MIN_AMOUNT: Deno.env.get('MIN_WITHDRAW_AMOUNT_BTC') || '0.0001',
-    CONFIRMATIONS: parseInt(Deno.env.get('CONFIRMATIONS_BTC') || '3', 10)
+    CONFIRMATIONS: parseInt(Deno.env.get('CONFIRMATIONS_BTC') || '3', 10),
+    // Circuit breaker
+    DISABLED: Deno.env.get('DISABLE_WITHDRAWALS_BTC') === 'true',
+    // Hot wallet outflow limits
+    HOT_WALLET_MAX_PER_HOUR: Deno.env.get('MAX_HOT_WALLET_OUTFLOW_PER_HOUR_BTC') || '0.01',
+    HOT_WALLET_MAX_PER_DAY: Deno.env.get('MAX_HOT_WALLET_OUTFLOW_PER_DAY_BTC') || '0.05',
+    // Velocity limits
+    MAX_WITHDRAWALS_PER_HOUR: parseInt(Deno.env.get('MAX_WITHDRAWALS_PER_HOUR_BTC') || '5', 10),
+    MAX_WITHDRAWALS_PER_DAY: parseInt(Deno.env.get('MAX_WITHDRAWALS_PER_DAY_BTC') || '20', 10),
+    // Per-destination limits
+    DEST_MAX_PER_DAY: Deno.env.get('DEST_MAX_PER_DAY_BTC') || '0.005'
   }
 };
 
@@ -51,6 +71,95 @@ function addDecimal(a, b) {
 function subtractDecimal(a, b) {
   const result = toScaled(a) - toScaled(b);
   return fromScaled(result < 0n ? 0n : result);
+}
+
+/**
+ * Get hot wallet outflow stats for a chain
+ */
+async function getHotWalletOutflow(base44, chain) {
+  const now = new Date();
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  // Get all withdrawals in the last 24h that were broadcasted or confirmed
+  const withdrawals = await base44.asServiceRole.entities.WithdrawalRequest.filter({ chain });
+  
+  let hourlyOutflow = '0';
+  let dailyOutflow = '0';
+  let hourlyCount = 0;
+  let dailyCount = 0;
+
+  for (const w of withdrawals) {
+    const createdAt = new Date(w.created_date);
+    if (['approved', 'broadcasted', 'confirmed'].includes(w.status)) {
+      if (createdAt >= oneDayAgo) {
+        dailyOutflow = addDecimal(dailyOutflow, w.amount);
+        dailyCount++;
+        if (createdAt >= oneHourAgo) {
+          hourlyOutflow = addDecimal(hourlyOutflow, w.amount);
+          hourlyCount++;
+        }
+      }
+    }
+  }
+
+  return { hourlyOutflow, dailyOutflow, hourlyCount, dailyCount };
+}
+
+/**
+ * Get per-destination address outflow for today
+ */
+async function getDestinationOutflow(base44, chain, destinationAddress) {
+  const now = new Date();
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  const withdrawals = await base44.asServiceRole.entities.WithdrawalRequest.filter({
+    chain,
+    destination_address: destinationAddress
+  });
+
+  let dailyTotal = '0';
+  for (const w of withdrawals) {
+    if (new Date(w.created_date) >= oneDayAgo && 
+        ['requested', 'approved', 'broadcasted', 'confirmed'].includes(w.status)) {
+      dailyTotal = addDecimal(dailyTotal, w.amount);
+    }
+  }
+
+  return dailyTotal;
+}
+
+/**
+ * Get worker velocity stats
+ */
+async function getWorkerVelocity(base44, workerId, chain) {
+  const now = new Date();
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  const withdrawals = await base44.asServiceRole.entities.WithdrawalRequest.filter({
+    worker_id: workerId,
+    chain
+  });
+
+  let hourlyCount = 0;
+  let dailyCount = 0;
+  let dailyAmount = '0';
+
+  for (const w of withdrawals) {
+    const createdAt = new Date(w.created_date);
+    if (['requested', 'risk_hold', 'approved', 'broadcasted', 'confirmed'].includes(w.status)) {
+      if (createdAt >= oneDayAgo) {
+        dailyCount++;
+        dailyAmount = addDecimal(dailyAmount, w.amount);
+        if (createdAt >= oneHourAgo) {
+          hourlyCount++;
+        }
+      }
+    }
+  }
+
+  return { hourlyCount, dailyCount, dailyAmount };
 }
 
 /**
@@ -97,22 +206,27 @@ async function computeRiskScore(base44, worker, withdrawal, payoutAddress) {
     }
   }
 
-  // 4. Daily withdrawal limit check
-  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const recentWithdrawals = await base44.asServiceRole.entities.WithdrawalRequest.filter({
-    worker_id: worker.id,
-    chain
-  });
+  // 4. Worker velocity limits
+  const velocity = await getWorkerVelocity(base44, worker.id, chain);
   
-  let dailyTotal = '0';
-  for (const w of recentWithdrawals) {
-    if (new Date(w.created_date) >= oneDayAgo && 
-        ['requested', 'approved', 'broadcasted', 'confirmed'].includes(w.status)) {
-      dailyTotal = addDecimal(dailyTotal, w.amount);
-    }
+  if (velocity.hourlyCount >= config.MAX_WITHDRAWALS_PER_HOUR) {
+    score += 40;
+    reasons.push({
+      code: 'WORKER_HOURLY_LIMIT',
+      message: `Worker hourly withdrawals ${velocity.hourlyCount} >= limit ${config.MAX_WITHDRAWALS_PER_HOUR}`
+    });
   }
-  
-  const projectedDaily = addDecimal(dailyTotal, withdrawal.amount);
+
+  if (velocity.dailyCount >= config.MAX_WITHDRAWALS_PER_DAY) {
+    score += 50;
+    reasons.push({
+      code: 'WORKER_DAILY_COUNT_LIMIT',
+      message: `Worker daily withdrawals ${velocity.dailyCount} >= limit ${config.MAX_WITHDRAWALS_PER_DAY}`
+    });
+  }
+
+  // 5. Worker daily amount limit
+  const projectedDaily = addDecimal(velocity.dailyAmount, withdrawal.amount);
   if (compareDecimal(projectedDaily, config.DAILY_MAX) > 0) {
     score += 35;
     reasons.push({
@@ -121,7 +235,18 @@ async function computeRiskScore(base44, worker, withdrawal, payoutAddress) {
     });
   }
 
-  // 5. Amount exceeds auto-approval max
+  // 6. Per-destination address daily limit
+  const destOutflow = await getDestinationOutflow(base44, chain, withdrawal.destination_address);
+  const projectedDestDaily = addDecimal(destOutflow, withdrawal.amount);
+  if (compareDecimal(projectedDestDaily, config.DEST_MAX_PER_DAY) > 0) {
+    score += 30;
+    reasons.push({
+      code: 'DEST_DAILY_LIMIT_EXCEEDED',
+      message: `Destination daily total ${projectedDestDaily} exceeds limit ${config.DEST_MAX_PER_DAY} ${chain}`
+    });
+  }
+
+  // 7. Amount exceeds auto-approval max
   if (compareDecimal(withdrawal.amount, config.AUTO_WITHDRAW_MAX) > 0) {
     score += 15;
     reasons.push({
@@ -130,7 +255,7 @@ async function computeRiskScore(base44, worker, withdrawal, payoutAddress) {
     });
   }
 
-  // 6. Worker suspended/flagged
+  // 8. Worker suspended/flagged
   if (worker.status === 'suspended' || worker.status === 'revoked') {
     score += 100;
     reasons.push({
@@ -139,7 +264,12 @@ async function computeRiskScore(base44, worker, withdrawal, payoutAddress) {
     });
   }
 
-  // 7. Too many failed withdrawals recently
+  // 9. Too many failed withdrawals recently
+  const recentWithdrawals = await base44.asServiceRole.entities.WithdrawalRequest.filter({
+    worker_id: worker.id,
+    chain
+  });
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const failedRecent = recentWithdrawals.filter(w => 
     new Date(w.created_date) >= oneDayAgo && 
     ['rejected', 'failed'].includes(w.status)
@@ -175,7 +305,6 @@ function canAutoApprove(riskScore, reasons, chain, amount) {
  * Process withdrawal request with risk assessment
  */
 async function processWithdrawalRequest(base44, withdrawalId) {
-  // Get withdrawal
   const withdrawals = await base44.asServiceRole.entities.WithdrawalRequest.filter({
     id: withdrawalId
   });
@@ -186,7 +315,6 @@ async function processWithdrawalRequest(base44, withdrawalId) {
   
   const withdrawal = withdrawals[0];
   
-  // Only process 'requested' status
   if (withdrawal.status !== 'requested') {
     return { 
       withdrawal_id: withdrawalId, 
@@ -195,7 +323,6 @@ async function processWithdrawalRequest(base44, withdrawalId) {
     };
   }
   
-  // Get worker
   const workers = await base44.asServiceRole.entities.Worker.filter({
     id: withdrawal.worker_id
   });
@@ -207,19 +334,105 @@ async function processWithdrawalRequest(base44, withdrawalId) {
   const worker = workers[0];
   const chain = withdrawal.chain;
   const config = CHAIN_CONFIG[chain];
+
+  // ========== CIRCUIT BREAKER CHECK ==========
+  if (config.DISABLED) {
+    await base44.asServiceRole.entities.WithdrawalRequest.update(withdrawalId, {
+      status: 'risk_hold',
+      risk_score: 100,
+      risk_reasons: JSON.stringify([{ code: 'CIRCUIT_BREAKER', message: `${chain} withdrawals disabled` }])
+    });
+
+    await base44.asServiceRole.entities.Event.create({
+      event_type: 'withdrawal_circuit_breaker_triggered',
+      entity_type: 'withdrawal',
+      entity_id: withdrawalId,
+      actor_type: 'system',
+      actor_id: 'risk_engine',
+      details: JSON.stringify({
+        chain,
+        worker_id: worker.id,
+        amount: withdrawal.amount,
+        reason: 'global_circuit_breaker'
+      })
+    });
+
+    return {
+      withdrawal_id: withdrawalId,
+      status: 'risk_hold',
+      risk_score: 100,
+      risk_reasons: [{ code: 'CIRCUIT_BREAKER', message: `${chain} withdrawals disabled` }]
+    };
+  }
+
+  // ========== HOT WALLET OUTFLOW LIMITS ==========
+  const hotWalletStats = await getHotWalletOutflow(base44, chain);
   
-  // Validate minimum amount
+  const projectedHourly = addDecimal(hotWalletStats.hourlyOutflow, withdrawal.amount);
+  const projectedDaily = addDecimal(hotWalletStats.dailyOutflow, withdrawal.amount);
+
+  const hourlyExceeded = compareDecimal(projectedHourly, config.HOT_WALLET_MAX_PER_HOUR) > 0;
+  const dailyExceeded = compareDecimal(projectedDaily, config.HOT_WALLET_MAX_PER_DAY) > 0;
+
+  if (hourlyExceeded || dailyExceeded) {
+    const limitReasons = [];
+    if (hourlyExceeded) {
+      limitReasons.push({
+        code: 'HOT_WALLET_HOURLY_LIMIT',
+        message: `Hourly outflow ${projectedHourly} exceeds ${config.HOT_WALLET_MAX_PER_HOUR} ${chain}`
+      });
+    }
+    if (dailyExceeded) {
+      limitReasons.push({
+        code: 'HOT_WALLET_DAILY_LIMIT',
+        message: `Daily outflow ${projectedDaily} exceeds ${config.HOT_WALLET_MAX_PER_DAY} ${chain}`
+      });
+    }
+
+    await base44.asServiceRole.entities.WithdrawalRequest.update(withdrawalId, {
+      status: 'risk_hold',
+      risk_score: 100,
+      risk_reasons: JSON.stringify(limitReasons)
+    });
+
+    await base44.asServiceRole.entities.Event.create({
+      event_type: 'hot_wallet_limit_reached',
+      entity_type: 'withdrawal',
+      entity_id: withdrawalId,
+      actor_type: 'system',
+      actor_id: 'risk_engine',
+      details: JSON.stringify({
+        chain,
+        worker_id: worker.id,
+        amount: withdrawal.amount,
+        hourly_outflow: hotWalletStats.hourlyOutflow,
+        daily_outflow: hotWalletStats.dailyOutflow,
+        hourly_limit: config.HOT_WALLET_MAX_PER_HOUR,
+        daily_limit: config.HOT_WALLET_MAX_PER_DAY,
+        hourly_exceeded: hourlyExceeded,
+        daily_exceeded: dailyExceeded
+      })
+    });
+
+    return {
+      withdrawal_id: withdrawalId,
+      status: 'risk_hold',
+      risk_score: 100,
+      risk_reasons: limitReasons
+    };
+  }
+
+  // ========== VALIDATE MINIMUM AMOUNT ==========
   if (compareDecimal(withdrawal.amount, config.MIN_AMOUNT) < 0) {
     await base44.asServiceRole.entities.WithdrawalRequest.update(withdrawalId, {
       status: 'rejected',
       failure_reason: `Amount below minimum ${config.MIN_AMOUNT} ${chain}`
     });
     
-    // Unlock funds
     await unlockWithdrawalFunds(base44, withdrawal);
     
     await base44.asServiceRole.entities.Event.create({
-      event_type: 'withdrawal_requested', // Using as rejection event
+      event_type: 'withdrawal_requested',
       entity_type: 'worker',
       entity_id: worker.id,
       actor_type: 'system',
@@ -261,7 +474,6 @@ async function processWithdrawalRequest(base44, withdrawalId) {
   
   // Check auto-approval eligibility
   if (canAutoApprove(score, reasons, chain, withdrawal.amount)) {
-    // Auto-approve
     await base44.asServiceRole.entities.WithdrawalRequest.update(withdrawalId, {
       status: 'approved'
     });
@@ -282,14 +494,12 @@ async function processWithdrawalRequest(base44, withdrawalId) {
       })
     });
     
-    // Enqueue broadcast job (invoke broadcastWithdrawal function)
     try {
       await base44.asServiceRole.functions.invoke('broadcastWithdrawal', {
         withdrawal_id: withdrawalId
       });
     } catch (err) {
       console.error('Failed to enqueue broadcast:', err);
-      // Still mark as approved, broadcast can be retried
     }
     
     return {
@@ -299,7 +509,6 @@ async function processWithdrawalRequest(base44, withdrawalId) {
       auto_approved: true
     };
   } else {
-    // Hold for review
     await base44.asServiceRole.entities.WithdrawalRequest.update(withdrawalId, {
       status: 'risk_hold'
     });
@@ -366,6 +575,35 @@ async function unlockWithdrawalFunds(base44, withdrawal) {
   });
 }
 
+/**
+ * Get outflow stats for admin dashboard
+ */
+async function getOutflowStats(base44) {
+  const ethStats = await getHotWalletOutflow(base44, 'ETH');
+  const btcStats = await getHotWalletOutflow(base44, 'BTC');
+
+  return {
+    ETH: {
+      hourly_outflow: ethStats.hourlyOutflow,
+      daily_outflow: ethStats.dailyOutflow,
+      hourly_count: ethStats.hourlyCount,
+      daily_count: ethStats.dailyCount,
+      hourly_limit: CHAIN_CONFIG.ETH.HOT_WALLET_MAX_PER_HOUR,
+      daily_limit: CHAIN_CONFIG.ETH.HOT_WALLET_MAX_PER_DAY,
+      circuit_breaker_active: CHAIN_CONFIG.ETH.DISABLED
+    },
+    BTC: {
+      hourly_outflow: btcStats.hourlyOutflow,
+      daily_outflow: btcStats.dailyOutflow,
+      hourly_count: btcStats.hourlyCount,
+      daily_count: btcStats.dailyCount,
+      hourly_limit: CHAIN_CONFIG.BTC.HOT_WALLET_MAX_PER_HOUR,
+      daily_limit: CHAIN_CONFIG.BTC.HOT_WALLET_MAX_PER_DAY,
+      circuit_breaker_active: CHAIN_CONFIG.BTC.DISABLED
+    }
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') {
     return Response.json({ error: 'Method not allowed' }, { status: 405 });
@@ -379,11 +617,28 @@ Deno.serve(async (req) => {
     // Get config (public, no auth required)
     if (action === 'get_config') {
       return Response.json({
-        ETH: CHAIN_CONFIG.ETH,
-        BTC: CHAIN_CONFIG.BTC,
+        ETH: {
+          ...CHAIN_CONFIG.ETH,
+          circuit_breaker_active: CHAIN_CONFIG.ETH.DISABLED
+        },
+        BTC: {
+          ...CHAIN_CONFIG.BTC,
+          circuit_breaker_active: CHAIN_CONFIG.BTC.DISABLED
+        },
         REQUIRED_WORKER_REPUTATION,
         REQUIRED_ACCOUNT_AGE_HOURS
       });
+    }
+
+    // Get outflow stats (admin only)
+    if (action === 'get_outflow_stats') {
+      const user = await base44.auth.me();
+      if (!user || user.role !== 'admin') {
+        return Response.json({ error: 'Admin access required' }, { status: 403 });
+      }
+
+      const stats = await getOutflowStats(base44);
+      return Response.json(stats);
     }
 
     // Process withdrawal (called internally or by admin)
@@ -441,7 +696,6 @@ Deno.serve(async (req) => {
           })
         });
 
-        // Enqueue broadcast
         try {
           await base44.asServiceRole.functions.invoke('broadcastWithdrawal', {
             withdrawal_id
@@ -497,7 +751,6 @@ Deno.serve(async (req) => {
         limit
       );
 
-      // Enrich with worker names
       const workerIds = [...new Set(withdrawals.map(w => w.worker_id))];
       const workers = await base44.asServiceRole.entities.Worker.filter({});
       const workerMap = {};
