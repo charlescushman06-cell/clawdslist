@@ -59,6 +59,10 @@ import Submissions from './pages/Submissions';
 import Tasks from './pages/Tasks';
 import Withdrawals from './pages/Withdrawals';
 import Workers from './pages/Workers';
+import Terms from './pages/Terms';
+import Copyright from './pages/Copyright';
+import ApiLicense from './pages/ApiLicense';
+import BrandUsage from './pages/BrandUsage';
 
 
 export const PAGES = {
@@ -74,6 +78,10 @@ export const PAGES = {
     "Tasks": Tasks,
     "Withdrawals": Withdrawals,
     "Workers": Workers,
+    "Terms": Terms,
+    "Copyright": Copyright,
+    "ApiLicense": ApiLicense,
+    "BrandUsage": BrandUsage,
 }
 
 export const pagesConfig = {
