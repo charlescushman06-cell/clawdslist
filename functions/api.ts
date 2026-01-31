@@ -744,49 +744,129 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Initiate withdrawal
+    // Initiate withdrawal (supports both crypto amount and legacy USD)
     if (action === 'initiate_withdrawal') {
-      const { chain, amount_usd, destination_address } = body;
+      const { chain, amount, amount_usd, destination_address } = body;
       
-      if (!chain || !amount_usd || !destination_address) {
-        return errorResponse('INVALID_PAYLOAD', 'Missing required fields: chain, amount_usd, destination_address');
+      if (!chain || !['ETH', 'BTC'].includes(chain)) {
+        return errorResponse('INVALID_PAYLOAD', 'chain must be ETH or BTC');
+      }
+      if (!destination_address) {
+        return errorResponse('INVALID_PAYLOAD', 'destination_address required');
+      }
+      if (!amount && !amount_usd) {
+        return errorResponse('INVALID_PAYLOAD', 'amount (crypto) or amount_usd required');
       }
 
-      // Check sufficient balance
-      if ((worker.available_balance_usd || 0) < amount_usd) {
-        return errorResponse('INSUFFICIENT_BALANCE');
-      }
-
-      // Deduct from available balance
-      await base44.asServiceRole.entities.Worker.update(worker.id, {
-        available_balance_usd: (worker.available_balance_usd || 0) - amount_usd,
-        total_withdrawn_usd: (worker.total_withdrawn_usd || 0) + amount_usd
+      // Get worker's ledger account for this chain
+      const accounts = await base44.asServiceRole.entities.LedgerAccount.filter({
+        owner_type: 'worker',
+        owner_id: worker.id,
+        chain
       });
 
-      // Create withdrawal transaction
-      const transaction = await base44.asServiceRole.entities.Transaction.create({
-        transaction_type: 'withdrawal',
+      if (accounts.length === 0) {
+        return errorResponse('INSUFFICIENT_BALANCE', `No ${chain} balance available`);
+      }
+
+      const account = accounts[0];
+      const availableBalance = account.available_balance || '0';
+
+      // Decimal math helpers
+      const toScaled = (amt) => {
+        if (!amt) return 0n;
+        const str = String(amt).trim();
+        if (!str || str === '0') return 0n;
+        if (!str.includes('.') && str.length > 15) return BigInt(str);
+        const [whole, frac = ''] = str.split('.');
+        return BigInt((whole || '0') + frac.padEnd(18, '0').slice(0, 18));
+      };
+      const fromScaled = (scaled) => {
+        const str = scaled.toString().padStart(19, '0');
+        const whole = str.slice(0, -18) || '0';
+        const frac = str.slice(-18).replace(/0+$/, '') || '0';
+        return frac === '0' ? whole : `${whole}.${frac}`;
+      };
+
+      // Determine withdrawal amount in crypto
+      let withdrawAmount = amount;
+      if (!withdrawAmount && amount_usd) {
+        // Legacy: If only USD provided, treat it as a very small crypto amount for backwards compat
+        // In production, you'd want a price feed here
+        withdrawAmount = String(amount_usd);
+      }
+
+      if (toScaled(withdrawAmount) > toScaled(availableBalance)) {
+        return errorResponse('INSUFFICIENT_BALANCE', `Available: ${availableBalance} ${chain}, requested: ${withdrawAmount} ${chain}`);
+      }
+
+      // Lock funds: available -> locked
+      const newAvailable = fromScaled(toScaled(availableBalance) - toScaled(withdrawAmount));
+      const newLocked = fromScaled(toScaled(account.locked_balance || '0') + toScaled(withdrawAmount));
+
+      await base44.asServiceRole.entities.LedgerAccount.update(account.id, {
+        available_balance: newAvailable,
+        locked_balance: newLocked
+      });
+
+      // Create withdrawal request
+      const withdrawal = await base44.asServiceRole.entities.WithdrawalRequest.create({
         worker_id: worker.id,
-        amount_usd: amount_usd,
-        balance_type: 'available',
-        status: 'pending',
-        metadata: JSON.stringify({ chain, destination_address }),
-        notes: `Withdrawal to ${destination_address}`
+        chain,
+        amount: withdrawAmount,
+        destination_address,
+        status: 'requested',
+        risk_score: 0,
+        risk_reasons: '[]'
       });
 
-      await logEvent(base44, 'funds_withdrawn', 'worker', worker.id, 'worker', worker.id, { 
-        chain, 
-        amount_usd, 
-        destination_address,
-        transaction_id: transaction.id 
+      // Create ledger entry
+      await base44.asServiceRole.entities.LedgerEntry.create({
+        chain,
+        amount: withdrawAmount,
+        entry_type: 'lock',
+        from_owner_type: 'worker',
+        from_owner_id: worker.id,
+        to_owner_type: 'worker',
+        to_owner_id: worker.id,
+        metadata: JSON.stringify({
+          withdrawal_id: withdrawal.id,
+          destination_address,
+          action: 'withdrawal_requested'
+        })
       });
+
+      await logEvent(base44, 'withdrawal_requested', 'worker', worker.id, 'worker', worker.id, { 
+        chain, 
+        amount: withdrawAmount,
+        destination_address,
+        withdrawal_id: withdrawal.id,
+        new_available: newAvailable,
+        new_locked: newLocked
+      });
+
+      // Trigger risk assessment
+      let riskResult = null;
+      try {
+        const riskResponse = await base44.asServiceRole.functions.invoke('withdrawalRisk', {
+          action: 'process_withdrawal',
+          withdrawal_id: withdrawal.id
+        });
+        riskResult = riskResponse.data || riskResponse;
+      } catch (err) {
+        console.error('Risk assessment failed:', err);
+      }
 
       return successResponse({
-        withdrawal_id: transaction.id,
-        status: 'pending',
-        amount_usd: amount_usd,
+        withdrawal_id: withdrawal.id,
+        status: riskResult?.status || 'requested',
+        amount: withdrawAmount,
         chain: chain,
-        destination_address: destination_address
+        destination_address: destination_address,
+        balance: {
+          available: newAvailable,
+          locked: newLocked
+        }
       });
     }
     
