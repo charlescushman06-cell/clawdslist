@@ -48,13 +48,26 @@ export default function HumanPortal() {
   }, [refetchTasks, refetchSubmissions]);
 
   const filteredTasks = allTasks.filter(task => {
-    // Filter out expired tasks (deadline passed)
-    if (task.deadline && new Date(task.deadline) < new Date() && task.status === 'open') {
-      return false;
-    }
+    // Treat open tasks past their expiry as expired for display
+    const isExpired = task.status === 'expired' || 
+      (task.status === 'open' && task.expires_at && new Date(task.expires_at) < new Date()) ||
+      (task.status === 'open' && task.deadline && new Date(task.deadline) < new Date());
+    
     const matchesSearch = !search || 
       task.title?.toLowerCase().includes(search.toLowerCase()) ||
       task.description?.toLowerCase().includes(search.toLowerCase());
+    
+    // Handle expired filter specially
+    if (statusFilter === 'expired') {
+      return matchesSearch && isExpired;
+    }
+    
+    // For 'open' filter, exclude expired tasks
+    if (statusFilter === 'open') {
+      return matchesSearch && task.status === 'open' && !isExpired;
+    }
+    
+    // For 'all', show everything including expired
     const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -149,12 +162,13 @@ export default function HumanPortal() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-700">
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="open">Open</SelectItem>
-                  <SelectItem value="claimed">In Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="claimed">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="expired">Expired</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
               </Select>
             </div>
             <p className="text-sm text-slate-500">

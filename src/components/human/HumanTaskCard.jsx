@@ -57,12 +57,17 @@ export default function HumanTaskCard({ task, submissions }) {
       if (task.status === 'claimed' && task.claimed_at) {
         // Time remaining on claim
         const claimExpiry = new Date(new Date(task.claimed_at).getTime() + (task.claim_timeout_minutes || 30) * 60 * 1000);
-        const remaining = claimExpiry - now;
+        const remaining = claimExpiry.getTime() - now.getTime();
+        return remaining > 0 ? remaining : 0;
+      } else if (task.status === 'open' && task.expires_at) {
+        // Time remaining until expires_at
+        const expiresAt = new Date(task.expires_at);
+        const remaining = expiresAt.getTime() - now.getTime();
         return remaining > 0 ? remaining : 0;
       } else if (task.status === 'open' && task.deadline) {
-        // Time remaining until deadline
+        // Fallback to deadline
         const deadline = new Date(task.deadline);
-        const remaining = deadline - now;
+        const remaining = deadline.getTime() - now.getTime();
         return remaining > 0 ? remaining : 0;
       }
       return null;
@@ -76,7 +81,7 @@ export default function HumanTaskCard({ task, submissions }) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [task.status, task.claimed_at, task.deadline, task.claim_timeout_minutes]);
+  }, [task.status, task.claimed_at, task.deadline, task.expires_at, task.claim_timeout_minutes]);
 
   const formatTimeRemaining = (ms) => {
     if (ms === null || ms === undefined) return null;
@@ -146,21 +151,31 @@ export default function HumanTaskCard({ task, submissions }) {
             <p className="text-xs text-slate-500">Bot Stake</p>
           </div>
           <div className="text-center">
-            {(task.status === 'claimed' || (task.status === 'open' && task.deadline)) && timeRemaining !== null ? (
-              <>
-                <div className={`flex items-center justify-center gap-1 mb-1 ${getTimeColor(timeRemaining)}`}>
-                  <Timer className="w-4 h-4" />
-                  <span className="text-sm font-semibold font-mono">{formatTimeRemaining(timeRemaining)}</span>
-                </div>
-                <p className="text-xs text-slate-500">
-                  {task.status === 'claimed' ? 'Time Left' : 'Expires In'}
-                </p>
-              </>
+            {(task.status === 'claimed' || (task.status === 'open' && (task.expires_at || task.deadline))) && timeRemaining !== null ? (
+              timeRemaining === 0 ? (
+                <>
+                  <div className="flex items-center justify-center gap-1 mb-1 text-red-500">
+                    <XCircle className="w-4 h-4" />
+                    <span className="text-sm font-semibold">Expired</span>
+                  </div>
+                  <p className="text-xs text-slate-500">Time Up</p>
+                </>
+              ) : (
+                <>
+                  <div className={`flex items-center justify-center gap-1 mb-1 ${getTimeColor(timeRemaining)}`}>
+                    <Timer className="w-4 h-4" />
+                    <span className="text-sm font-semibold">{formatTimeRemaining(timeRemaining)}</span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    {task.status === 'claimed' ? 'Time Left' : 'Expires In'}
+                  </p>
+                </>
+              )
             ) : (
               <>
                 <div className="flex items-center justify-center gap-1 text-red-400 mb-1">
                   <Clock className="w-4 h-4" />
-                  <span className="text-sm font-semibold">{task.claim_timeout_minutes}</span>
+                  <span className="text-sm font-semibold">{task.claim_timeout_minutes || '-'}</span>
                 </div>
                 <p className="text-xs text-slate-500">Minutes</p>
               </>
