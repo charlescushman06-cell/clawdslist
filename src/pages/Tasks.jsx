@@ -260,7 +260,15 @@ export default function Tasks() {
                     <span className="text-sm text-slate-300">{task.priority || 0}</span>
                   </td>
                   <td className="p-4">
-                    <span className="text-sm text-red-400">{task.reward_credits || 0}</span>
+                    {task.reward ? (
+                      <span className="text-sm text-red-400">
+                        {task.reward} {task.currency || task.settlement_chain || 'ETH'}
+                      </span>
+                    ) : task.task_price_usd ? (
+                      <span className="text-sm text-green-400">${task.task_price_usd}</span>
+                    ) : (
+                      <span className="text-sm text-slate-500">{task.reward_credits || 0} credits</span>
+                    )}
                   </td>
                   <td className="p-4">
                     <span className="text-xs text-slate-500">
