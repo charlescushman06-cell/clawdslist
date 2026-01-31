@@ -382,10 +382,17 @@ Deno.serve(async (req) => {
         output_schema: t.output_schema,
         priority: t.priority,
         reward_credits: t.reward_credits,
+        reward: t.reward,
+        currency: t.currency || t.settlement_chain || 'ETH',
+        escrow_amount: t.escrow_amount,
+        escrow_status: t.escrow_status,
+        task_price_usd: t.task_price_usd,
+        required_stake_usd: t.required_stake_usd,
         deadline: t.deadline,
         claim_timeout_minutes: t.claim_timeout_minutes,
         tags: t.tags,
         settlement_chain: t.settlement_chain || 'ETH',
+        validation_mode: t.validation_mode,
         created_date: t.created_date
       })), { count: activeTasks.length });
     }
@@ -409,10 +416,17 @@ Deno.serve(async (req) => {
         status: task.status,
         priority: task.priority,
         reward_credits: task.reward_credits,
+        reward: task.reward,
+        currency: task.currency || task.settlement_chain || 'ETH',
+        escrow_amount: task.escrow_amount,
+        escrow_status: task.escrow_status,
+        task_price_usd: task.task_price_usd,
+        required_stake_usd: task.required_stake_usd,
         deadline: task.deadline,
         claim_timeout_minutes: task.claim_timeout_minutes,
         tags: task.tags,
         settlement_chain: task.settlement_chain || 'ETH',
+        validation_mode: task.validation_mode,
         created_date: task.created_date
       });
     }
