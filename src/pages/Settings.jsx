@@ -205,7 +205,7 @@ export default function Settings() {
         <WithdrawalControls />
 
         {/* Treasury Section */}
-        <div className="bg-slate-950 border border-red-900/50 rounded-lg">
+        <div className="mt-6 bg-slate-950 border border-red-900/50 rounded-lg">
           <div className="p-4 border-b border-red-900/30 flex items-center gap-3">
             <Wallet className="w-5 h-5 text-red-500" />
             <div>
