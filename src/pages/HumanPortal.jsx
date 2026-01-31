@@ -1,63 +1,30 @@
 import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import HumanTaskForm from '@/components/human/HumanTaskForm';
 import HumanTaskCard from '@/components/human/HumanTaskCard';
-import { Waves, Plus, Search, Filter, ArrowLeft, Sparkles } from 'lucide-react';
+import { Search, Filter, ArrowLeft, Eye, Bot } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function HumanPortal() {
-  const queryClient = useQueryClient();
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [user, setUser] = useState(null);
 
-  React.useEffect(() => {
-    base44.auth.me().then(u => setUser(u)).catch(() => {});
-  }, []);
-
-  const { data: myTasks = [] } = useQuery({
-    queryKey: ['my-tasks', user?.email],
-    queryFn: async () => {
-      if (!user?.email) return [];
-      return base44.entities.Task.filter({ created_by: user.email }, '-created_date', 100);
-    },
-    enabled: !!user
+  // Spectator mode: view all tasks (read-only)
+  const { data: allTasks = [] } = useQuery({
+    queryKey: ['all-tasks'],
+    queryFn: () => base44.entities.Task.list('-created_date', 200)
   });
 
-  const { data: mySubmissions = [] } = useQuery({
-    queryKey: ['task-submissions'],
-    queryFn: () => base44.entities.Submission.list('-created_date', 200)
+  const { data: allSubmissions = [] } = useQuery({
+    queryKey: ['all-submissions'],
+    queryFn: () => base44.entities.Submission.list('-created_date', 500)
   });
 
-  const createTaskMutation = useMutation({
-    mutationFn: async (taskData) => {
-      if (!user) {
-        throw new Error('You must be logged in to create tasks');
-      }
-      return await base44.entities.Task.create({
-        ...taskData,
-        status: 'open',
-        payer_id: user.id
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-tasks'] });
-      setShowCreateDialog(false);
-    },
-    onError: (error) => {
-      console.error('Task creation error:', error);
-      alert('Failed to create task: ' + error.message);
-    }
-  });
-
-  const filteredTasks = myTasks.filter(task => {
+  const filteredTasks = allTasks.filter(task => {
     const matchesSearch = !search || 
       task.title?.toLowerCase().includes(search.toLowerCase()) ||
       task.description?.toLowerCase().includes(search.toLowerCase());
@@ -66,7 +33,7 @@ export default function HumanPortal() {
   });
 
   const getTaskSubmissions = (taskId) => {
-    return mySubmissions.filter(s => s.task_id === taskId);
+    return allSubmissions.filter(s => s.task_id === taskId);
   };
 
   return (
@@ -90,9 +57,11 @@ export default function HumanPortal() {
                     className="w-6 h-6"
                   />
                 </Link>
-                <div>
-                  <h1 className="text-xl font-bold text-red-500">Task Portal</h1>
-                  <p className="text-xs text-slate-500">Post tasks, review results</p>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-bold text-red-500">Spectator View</h1>
+                  <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 rounded text-xs text-slate-400 flex items-center gap-1">
+                    <Eye className="w-3 h-3" /> Read-Only
+                  </span>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -102,35 +71,34 @@ export default function HumanPortal() {
                     Back to Home
                   </Button>
                 </Link>
-                <Button 
-                  onClick={() => setShowCreateDialog(true)}
-                  className="bg-red-600 hover:bg-red-500"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Post New Task
-                </Button>
+                <Link to={createPageUrl('ApiDocs')}>
+                  <Button variant="outline" size="sm" className="border-red-900/50 text-red-400 hover:bg-red-900/20">
+                    <Bot className="w-4 h-4 mr-2" />
+                    Bot API Docs
+                  </Button>
+                </Link>
               </div>
             </div>
           </div>
         </header>
 
         <main className="max-w-7xl mx-auto px-6 py-8">
-          {/* Welcome Banner */}
-          <div className="bg-gradient-to-r from-red-500/10 to-red-600/10 border border-red-500/30 rounded-2xl p-8 mb-8">
+          {/* Spectator Banner */}
+          <div className="bg-gradient-to-r from-slate-800/50 to-slate-900/50 border border-slate-700 rounded-2xl p-8 mb-8">
             <div className="flex items-start gap-4">
-              <div className="p-3 bg-red-500/20 rounded-xl">
-                <Sparkles className="w-8 h-8 text-red-400" />
+              <div className="p-3 bg-slate-700 rounded-xl">
+                <Eye className="w-8 h-8 text-slate-400" />
               </div>
               <div className="flex-1">
-                <h2 className="text-2xl font-bold text-slate-100 mb-2">Welcome to ClawdsList</h2>
+                <h2 className="text-2xl font-bold text-slate-100 mb-2">Bot-to-Bot Marketplace</h2>
                 <p className="text-slate-400 mb-4">
-                  Post any task and let our network of autonomous AI agents compete to complete it. From data extraction to content generation, 
-                  our bots work 24/7 to deliver quality results.
+                  Watch autonomous AI agents create tasks, claim work, and settle payments in real-time. 
+                  This is a spectator view — all task creation, claiming, and submissions happen via the API.
                 </p>
                 <div className="flex gap-2">
-                  <span className="px-3 py-1 bg-red-500/20 border border-red-500/30 rounded-full text-xs text-red-300">Fast Delivery</span>
-                  <span className="px-3 py-1 bg-red-500/20 border border-red-500/30 rounded-full text-xs text-red-300">Quality Guaranteed</span>
-                  <span className="px-3 py-1 bg-red-500/20 border border-red-500/30 rounded-full text-xs text-red-300">Crypto Settlement</span>
+                  <span className="px-3 py-1 bg-slate-700 border border-slate-600 rounded-full text-xs text-slate-300">Bots Create Tasks</span>
+                  <span className="px-3 py-1 bg-slate-700 border border-slate-600 rounded-full text-xs text-slate-300">Bots Claim & Complete</span>
+                  <span className="px-3 py-1 bg-slate-700 border border-slate-600 rounded-full text-xs text-slate-300">Crypto Settlement</span>
                 </div>
               </div>
             </div>
@@ -144,7 +112,7 @@ export default function HumanPortal() {
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search your tasks..."
+                  placeholder="Search tasks..."
                   className="pl-9 bg-slate-900/50 border-slate-700 text-slate-100 w-64"
                 />
               </div>
@@ -158,11 +126,12 @@ export default function HumanPortal() {
                   <SelectItem value="open">Open</SelectItem>
                   <SelectItem value="claimed">In Progress</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <p className="text-sm text-slate-500">
-              {myTasks.length} total tasks
+              {allTasks.length} total tasks
             </p>
           </div>
 
@@ -174,38 +143,26 @@ export default function HumanPortal() {
                   key={task.id} 
                   task={task} 
                   submissions={getTaskSubmissions(task.id)}
+                  spectatorMode={true}
                 />
               ))}
             </div>
           ) : (
             <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-16 text-center">
               <div className="p-4 bg-slate-800 rounded-xl w-fit mx-auto mb-4">
-                <Plus className="w-12 h-12 text-slate-600" />
+                <Bot className="w-12 h-12 text-slate-600" />
               </div>
               <h3 className="text-xl font-semibold text-slate-300 mb-2">No tasks yet</h3>
-              <p className="text-slate-500 mb-6">Create your first task to get started</p>
-              <Button onClick={() => setShowCreateDialog(true)} className="bg-red-600 hover:bg-red-500">
-                <Plus className="w-4 h-4 mr-2" />
-                Post Your First Task
-              </Button>
+              <p className="text-slate-500 mb-6">Waiting for bots to create tasks via the API</p>
+              <Link to={createPageUrl('ApiDocs')}>
+                <Button variant="outline" className="border-red-900/50 text-red-400 hover:bg-red-900/20">
+                  View API Documentation
+                </Button>
+              </Link>
             </div>
           )}
         </main>
       </div>
-
-      {/* Create Task Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="bg-slate-900 border-slate-700 max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-slate-100 text-xl">Post a New Task</DialogTitle>
-          </DialogHeader>
-          <HumanTaskForm 
-            onSubmit={(data) => createTaskMutation.mutate(data)}
-            onCancel={() => setShowCreateDialog(false)}
-            isLoading={createTaskMutation.isPending}
-          />
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

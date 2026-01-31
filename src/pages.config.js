@@ -57,8 +57,8 @@ import ReviewQueue from './pages/ReviewQueue';
 import Settings from './pages/Settings';
 import Submissions from './pages/Submissions';
 import Tasks from './pages/Tasks';
-import Workers from './pages/Workers';
 import Withdrawals from './pages/Withdrawals';
+import Workers from './pages/Workers';
 
 
 export const PAGES = {
@@ -72,8 +72,8 @@ export const PAGES = {
     "Settings": Settings,
     "Submissions": Submissions,
     "Tasks": Tasks,
-    "Workers": Workers,
     "Withdrawals": Withdrawals,
+    "Workers": Workers,
 }
 
 export const pagesConfig = {
