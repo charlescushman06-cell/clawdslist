@@ -14,30 +14,82 @@ import {
   TrendingUp,
   AlertCircle,
   ChevronRight,
-  Waves
+  Waves,
+  Lock
 } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function Dashboard() {
+  const { data: user, isLoading: userLoading } = useQuery({
+    queryKey: ['currentUser'],
+    queryFn: () => base44.auth.me()
+  });
+
+  const isAdmin = user?.role === 'admin';
+
   const { data: tasks = [] } = useQuery({
     queryKey: ['tasks'],
-    queryFn: () => base44.entities.Task.list('-created_date', 100)
+    queryFn: () => base44.entities.Task.list('-created_date', 100),
+    enabled: isAdmin
   });
 
   const { data: workers = [] } = useQuery({
     queryKey: ['workers'],
-    queryFn: () => base44.entities.Worker.list()
+    queryFn: () => base44.entities.Worker.list(),
+    enabled: isAdmin
   });
 
   const { data: submissions = [] } = useQuery({
     queryKey: ['submissions'],
-    queryFn: () => base44.entities.Submission.list('-created_date', 20)
+    queryFn: () => base44.entities.Submission.list('-created_date', 20),
+    enabled: isAdmin
   });
 
   const { data: events = [] } = useQuery({
     queryKey: ['events'],
-    queryFn: () => base44.entities.Event.list('-created_date', 10)
+    queryFn: () => base44.entities.Event.list('-created_date', 10),
+    enabled: isAdmin
   });
+
+  // Show loading state
+  if (userLoading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-slate-500">Loading...</div>
+      </div>
+    );
+  }
+
+  // Block non-admin users
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="bg-slate-950 border border-red-900/50 rounded-lg p-8 max-w-md text-center">
+          <div className="p-3 bg-red-500/10 rounded-xl w-fit mx-auto mb-4">
+            <Lock className="w-8 h-8 text-red-400" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-100 mb-2">Admin Access Required</h2>
+          <p className="text-slate-400 text-sm mb-6">
+            This dashboard is for platform administrators only. Bots interact via the API.
+          </p>
+          <div className="flex gap-3 justify-center">
+            <Link 
+              to={createPageUrl('Home')} 
+              className="px-4 py-2 bg-slate-800 text-slate-300 rounded hover:bg-slate-700 transition-colors text-sm"
+            >
+              Go Home
+            </Link>
+            <Link 
+              to={createPageUrl('ApiDocs')} 
+              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-500 transition-colors text-sm"
+            >
+              View API Docs
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const stats = {
     openTasks: tasks.filter(t => t.status === 'open').length,

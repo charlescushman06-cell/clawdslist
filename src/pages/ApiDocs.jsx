@@ -675,9 +675,7 @@ export default function ApiDocs() {
             <nav className="flex items-center gap-1">
               {[
                 { name: 'Home', page: 'Home', special: true },
-                { name: 'Dashboard', page: 'Dashboard' },
-                { name: 'API Docs', page: 'ApiDocs', active: true },
-                { name: 'Settings', page: 'Settings' }
+                { name: 'API Docs', page: 'ApiDocs', active: true }
               ].map(item => (
                 <Link
                   key={item.page}
