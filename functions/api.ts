@@ -1,5 +1,15 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
+// Anti-spam configuration for task creation
+const TASK_CREATION_LIMITS = {
+  MAX_TASKS_CREATED_PER_HOUR: parseInt(Deno.env.get('MAX_TASKS_CREATED_PER_HOUR') || '20', 10),
+  MAX_OPEN_TASKS_PER_WORKER: parseInt(Deno.env.get('MAX_OPEN_TASKS_PER_WORKER') || '20', 10),
+  MIN_TASK_REWARD_ETH: Deno.env.get('MIN_TASK_REWARD_ETH') || '0.0005',
+  MIN_TASK_REWARD_BTC: Deno.env.get('MIN_TASK_REWARD_BTC') || '0.00001',
+  REQUIRED_CREATOR_REPUTATION: parseInt(Deno.env.get('REQUIRED_CREATOR_REPUTATION') || '0', 10),
+  REQUIRED_ACCOUNT_AGE_MINUTES: parseInt(Deno.env.get('REQUIRED_ACCOUNT_AGE_MINUTES') || '0', 10)
+};
+
 // API error codes - machine readable
 const ERROR_CODES = {
   AUTH_MISSING: { code: 'E001', message: 'API key required', status: 401 },
@@ -17,6 +27,11 @@ const ERROR_CODES = {
   MILESTONE_NOT_FOUND: { code: 'E013', message: 'Milestone not found', status: 404 },
   MILESTONE_NOT_ACTIVE: { code: 'E014', message: 'Milestone is not active', status: 409 },
   MAX_ATTEMPTS_REACHED: { code: 'E015', message: 'Max attempts reached for this milestone', status: 403 },
+  RATE_LIMIT_TASKS_HOUR: { code: 'E016', message: 'Task creation rate limit exceeded (hourly)', status: 429 },
+  RATE_LIMIT_OPEN_TASKS: { code: 'E017', message: 'Too many open tasks', status: 429 },
+  REWARD_TOO_LOW: { code: 'E018', message: 'Task reward below minimum', status: 400 },
+  CREATOR_REPUTATION_LOW: { code: 'E019', message: 'Insufficient reputation to create tasks', status: 403 },
+  ACCOUNT_TOO_NEW: { code: 'E020', message: 'Account too new to create tasks', status: 403 },
   INTERNAL_ERROR: { code: 'E999', message: 'Internal server error', status: 500 }
 };
 
@@ -1314,11 +1329,92 @@ Deno.serve(async (req) => {
         return errorResponse('INVALID_PAYLOAD', `type must be one of: ${validTypes.join(', ')}`);
       }
 
+      // === ANTI-SPAM CHECKS ===
+      
+      // 1. Check account age requirement
+      if (TASK_CREATION_LIMITS.REQUIRED_ACCOUNT_AGE_MINUTES > 0) {
+        const accountAge = (Date.now() - new Date(worker.created_date).getTime()) / 60000;
+        if (accountAge < TASK_CREATION_LIMITS.REQUIRED_ACCOUNT_AGE_MINUTES) {
+          await logEvent(base44, 'task_create_rejected_account_age', 'worker', worker.id, 'system', 'anti_spam', {
+            account_age_minutes: Math.floor(accountAge),
+            required_minutes: TASK_CREATION_LIMITS.REQUIRED_ACCOUNT_AGE_MINUTES
+          });
+          return errorResponse('ACCOUNT_TOO_NEW', `Account must be at least ${TASK_CREATION_LIMITS.REQUIRED_ACCOUNT_AGE_MINUTES} minutes old`);
+        }
+      }
+
+      // 2. Check reputation requirement
+      if (TASK_CREATION_LIMITS.REQUIRED_CREATOR_REPUTATION > 0) {
+        if ((worker.reputation_score || 0) < TASK_CREATION_LIMITS.REQUIRED_CREATOR_REPUTATION) {
+          await logEvent(base44, 'task_create_rejected_reputation', 'worker', worker.id, 'system', 'anti_spam', {
+            reputation: worker.reputation_score || 0,
+            required: TASK_CREATION_LIMITS.REQUIRED_CREATOR_REPUTATION
+          });
+          return errorResponse('CREATOR_REPUTATION_LOW', `Reputation must be at least ${TASK_CREATION_LIMITS.REQUIRED_CREATOR_REPUTATION}`);
+        }
+      }
+
+      // 3. Check hourly task creation rate limit
+      const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
+      const recentTasks = await base44.asServiceRole.entities.Task.filter({
+        creator_worker_id: worker.id
+      });
+      const tasksCreatedLastHour = recentTasks.filter(t => t.created_date >= oneHourAgo).length;
+      
+      if (tasksCreatedLastHour >= TASK_CREATION_LIMITS.MAX_TASKS_CREATED_PER_HOUR) {
+        await logEvent(base44, 'task_create_rejected_rate_limit', 'worker', worker.id, 'system', 'anti_spam', {
+          tasks_created_last_hour: tasksCreatedLastHour,
+          limit: TASK_CREATION_LIMITS.MAX_TASKS_CREATED_PER_HOUR
+        });
+        return errorResponse('RATE_LIMIT_TASKS_HOUR', `Max ${TASK_CREATION_LIMITS.MAX_TASKS_CREATED_PER_HOUR} tasks per hour`);
+      }
+
+      // 4. Check max open tasks per worker
+      const openTasks = await base44.asServiceRole.entities.Task.filter({
+        creator_worker_id: worker.id,
+        status: 'open'
+      });
+      
+      if (openTasks.length >= TASK_CREATION_LIMITS.MAX_OPEN_TASKS_PER_WORKER) {
+        await logEvent(base44, 'task_create_rejected_rate_limit', 'worker', worker.id, 'system', 'anti_spam', {
+          open_tasks: openTasks.length,
+          limit: TASK_CREATION_LIMITS.MAX_OPEN_TASKS_PER_WORKER
+        });
+        return errorResponse('RATE_LIMIT_OPEN_TASKS', `Max ${TASK_CREATION_LIMITS.MAX_OPEN_TASKS_PER_WORKER} open tasks allowed`);
+      }
+
+      // 5. Check minimum reward (for crypto rewards)
+      const chain = settlement_chain || currency || 'ETH';
+      const rewardAmount = reward ? reward.toString() : null;
+      
+      if (rewardAmount) {
+        const minReward = chain === 'BTC' 
+          ? TASK_CREATION_LIMITS.MIN_TASK_REWARD_BTC 
+          : TASK_CREATION_LIMITS.MIN_TASK_REWARD_ETH;
+        
+        const toScaledCheck = (amt) => {
+          if (!amt) return 0n;
+          const [whole, frac = ''] = amt.toString().split('.');
+          return BigInt(whole + frac.padEnd(18, '0').slice(0, 18));
+        };
+        
+        if (toScaledCheck(rewardAmount) < toScaledCheck(minReward)) {
+          await logEvent(base44, 'task_create_rejected_low_reward', 'worker', worker.id, 'system', 'anti_spam', {
+            reward: rewardAmount,
+            currency: chain,
+            minimum: minReward
+          });
+          return errorResponse('REWARD_TOO_LOW', `Minimum reward is ${minReward} ${chain}`);
+        }
+      }
+
+      // === END ANTI-SPAM CHECKS ===
+
       // Support both USD pricing and crypto reward
       const taskPrice = parseFloat(task_price_usd) || 0;
       const stakeRequired = parseFloat(required_stake_usd) || 0;
-      const chain = settlement_chain || currency || 'ETH';
-      const rewardAmount = reward ? reward.toString() : null;
+      // chain already defined above in anti-spam checks
+      // rewardAmount already defined above in anti-spam checks
       const taskValidationMode = validation_mode || 'none';
 
       // Validate validation_mode
