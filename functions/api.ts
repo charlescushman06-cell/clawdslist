@@ -1211,6 +1211,155 @@ Deno.serve(async (req) => {
       })));
     }
 
+    // Create a task (bot-to-bot marketplace)
+    if (action === 'create_task') {
+      const { title, type, description, requirements, input_data, output_schema, task_price_usd, required_stake_usd, deadline, tags, settlement_chain } = body;
+
+      if (!title || !type || !description) {
+        return errorResponse('INVALID_PAYLOAD', 'title, type, and description required');
+      }
+
+      const validTypes = ['data_extraction', 'content_generation', 'code_review', 'classification', 'transformation', 'verification', 'other'];
+      if (!validTypes.includes(type)) {
+        return errorResponse('INVALID_PAYLOAD', `type must be one of: ${validTypes.join(', ')}`);
+      }
+
+      const taskPrice = parseFloat(task_price_usd) || 0;
+      const stakeRequired = parseFloat(required_stake_usd) || 0;
+      const chain = settlement_chain || 'ETH';
+
+      // Check payer has sufficient balance to fund the task
+      if (taskPrice > 0) {
+        const ledger = await getOrCreateLedger(base44, worker.id);
+        if (ledger.available_balance < taskPrice) {
+          return errorResponse('INSUFFICIENT_BALANCE', `Need ${taskPrice} USD to fund task, available: ${ledger.available_balance}`);
+        }
+
+        // Lock task payment from payer
+        await base44.asServiceRole.entities.Ledger.update(ledger.id, {
+          available_balance: ledger.available_balance - taskPrice,
+          locked_balance: ledger.locked_balance + taskPrice
+        });
+
+        await base44.asServiceRole.entities.Transaction.create({
+          transaction_type: 'lock',
+          worker_id: worker.id,
+          amount_usd: taskPrice,
+          balance_type: 'locked',
+          notes: `Task funding locked: ${title}`
+        });
+      }
+
+      const task = await base44.asServiceRole.entities.Task.create({
+        title,
+        type,
+        task_type: 'short',
+        description,
+        requirements: requirements || null,
+        input_data: input_data ? (typeof input_data === 'string' ? input_data : JSON.stringify(input_data)) : null,
+        output_schema: output_schema ? (typeof output_schema === 'string' ? output_schema : JSON.stringify(output_schema)) : null,
+        status: 'open',
+        priority: body.priority || 0,
+        reward_credits: body.reward_credits || 0,
+        task_price_usd: taskPrice,
+        required_stake_usd: stakeRequired,
+        deadline: deadline || null,
+        tags: tags || [],
+        settlement_chain: chain,
+        payer_id: worker.id,
+        claim_timeout_minutes: body.claim_timeout_minutes || 30
+      });
+
+      await logEvent(base44, 'task_created', 'task', task.id, 'worker', worker.id, {
+        title,
+        type,
+        task_price_usd: taskPrice,
+        payer_id: worker.id
+      });
+
+      return successResponse({
+        task_id: task.id,
+        title: task.title,
+        type: task.type,
+        status: task.status,
+        task_price_usd: taskPrice,
+        required_stake_usd: stakeRequired,
+        settlement_chain: chain,
+        created_date: task.created_date
+      });
+    }
+
+    // Cancel own task (only if open, no claims)
+    if (action === 'cancel_task') {
+      const { task_id } = body;
+      if (!task_id) return errorResponse('INVALID_PAYLOAD', 'task_id required');
+
+      const tasks = await base44.asServiceRole.entities.Task.filter({ id: task_id });
+      if (!tasks || tasks.length === 0) return errorResponse('TASK_NOT_FOUND');
+
+      const task = tasks[0];
+
+      // Only payer can cancel
+      if (task.payer_id !== worker.id) {
+        return errorResponse('TASK_NOT_CLAIMED', 'Only task creator can cancel');
+      }
+
+      // Only open tasks can be cancelled
+      if (task.status !== 'open') {
+        return errorResponse('TASK_NOT_OPEN', 'Only open tasks can be cancelled');
+      }
+
+      // Refund locked funds
+      if (task.task_price_usd > 0) {
+        const ledger = await getOrCreateLedger(base44, worker.id);
+        await base44.asServiceRole.entities.Ledger.update(ledger.id, {
+          available_balance: ledger.available_balance + task.task_price_usd,
+          locked_balance: Math.max(0, ledger.locked_balance - task.task_price_usd)
+        });
+
+        await base44.asServiceRole.entities.Transaction.create({
+          transaction_type: 'unlock',
+          worker_id: worker.id,
+          task_id: task.id,
+          amount_usd: task.task_price_usd,
+          balance_type: 'available',
+          notes: `Task cancelled, funds returned: ${task.title}`
+        });
+      }
+
+      await base44.asServiceRole.entities.Task.update(task.id, {
+        status: 'cancelled'
+      });
+
+      await logEvent(base44, 'task_cancelled', 'task', task.id, 'worker', worker.id, {
+        title: task.title,
+        refunded: task.task_price_usd
+      });
+
+      return successResponse({
+        task_id: task.id,
+        status: 'cancelled',
+        refunded: task.task_price_usd
+      });
+    }
+
+    // List tasks created by this worker
+    if (action === 'my_tasks') {
+      const tasks = await base44.asServiceRole.entities.Task.filter({
+        payer_id: worker.id
+      }, '-created_date', body.limit || 50);
+
+      return successResponse(tasks.map(t => ({
+        id: t.id,
+        title: t.title,
+        type: t.type,
+        status: t.status,
+        task_price_usd: t.task_price_usd,
+        claimed_by: t.claimed_by,
+        created_date: t.created_date
+      })), { count: tasks.length });
+    }
+
     // Get task progress (with milestones)
     if (action === 'get_task_progress') {
       if (!body.task_id) return errorResponse('INVALID_PAYLOAD', 'task_id required');
