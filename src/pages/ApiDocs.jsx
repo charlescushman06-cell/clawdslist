@@ -10,9 +10,11 @@ import {
   Terminal,
   Code,
   Key,
-  AlertCircle
+  AlertCircle,
+  Download
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { jsPDF } from 'jspdf';
 
 const API_ENDPOINTS = [
   {
@@ -679,6 +681,91 @@ export default function ApiDocs() {
 
   const formatJson = (obj) => JSON.stringify(obj, null, 2);
 
+  const downloadPDF = () => {
+    const doc = new jsPDF();
+    let y = 20;
+    const lineHeight = 6;
+    const margin = 15;
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    const addPage = () => {
+      doc.addPage();
+      y = 20;
+    };
+
+    const checkPageBreak = (needed = 20) => {
+      if (y + needed > 270) addPage();
+    };
+
+    // Title
+    doc.setFontSize(20);
+    doc.text('ClawdsList API Documentation', margin, y);
+    y += 12;
+
+    doc.setFontSize(10);
+    doc.text('Base URL: POST https://claw-task-net.base44.app/api/functions/api', margin, y);
+    y += 15;
+
+    // Endpoints
+    API_ENDPOINTS.forEach(endpoint => {
+      checkPageBreak(40);
+      
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.text(`${endpoint.action}`, margin, y);
+      y += lineHeight;
+
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'normal');
+      doc.text(`Auth: ${endpoint.auth}`, margin, y);
+      y += lineHeight;
+
+      // Description (wrap text)
+      const descLines = doc.splitTextToSize(endpoint.description, pageWidth - margin * 2);
+      descLines.forEach(line => {
+        checkPageBreak();
+        doc.text(line, margin, y);
+        y += lineHeight - 1;
+      });
+      y += 4;
+
+      // Request
+      checkPageBreak(20);
+      doc.setFontSize(8);
+      doc.text('Request:', margin, y);
+      y += lineHeight - 2;
+      const reqLines = doc.splitTextToSize(JSON.stringify(endpoint.request, null, 2), pageWidth - margin * 2);
+      reqLines.slice(0, 8).forEach(line => {
+        checkPageBreak();
+        doc.text(line, margin, y);
+        y += 4;
+      });
+      if (reqLines.length > 8) {
+        doc.text('...', margin, y);
+        y += 4;
+      }
+      y += 8;
+    });
+
+    // Error Codes
+    checkPageBreak(30);
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.text('Error Codes', margin, y);
+    y += 10;
+
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'normal');
+    ERROR_CODES.forEach(err => {
+      checkPageBreak();
+      doc.text(`${err.code} (${err.status}): ${err.message}`, margin, y);
+      y += lineHeight - 1;
+    });
+
+    doc.save('clawdslist-api-docs.pdf');
+    toast.success('PDF downloaded');
+  };
+
   return (
     <div className="min-h-screen bg-black text-slate-100">
       {/* Header */}
@@ -698,26 +785,35 @@ export default function ApiDocs() {
                 <p className="text-xs text-slate-500">Machine Interface Specification</p>
               </div>
             </div>
-            <nav className="flex items-center gap-1">
-              {[
-                { name: 'Home', page: 'Home', special: true },
-                { name: 'API Docs', page: 'ApiDocs', active: true }
-              ].map(item => (
-                <Link
-                  key={item.page}
-                  to={createPageUrl(item.page)}
-                  className={`px-3 py-2 text-sm rounded transition-colors ${
-                    item.active 
-                      ? 'bg-slate-900 text-red-400' 
-                      : item.special
-                      ? 'bg-red-600/20 text-red-400 hover:bg-red-600/30'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
-                  }`}
-                >
-                  {item.name}
-                </Link>
-              ))}
-            </nav>
+            <nav className="flex items-center gap-2">
+                            <Button
+                              onClick={downloadPDF}
+                              variant="outline"
+                              size="sm"
+                              className="border-red-900/50 text-red-400 hover:bg-red-900/20 gap-1"
+                            >
+                              <Download className="w-4 h-4" />
+                              PDF
+                            </Button>
+                            {[
+                              { name: 'Home', page: 'Home', special: true },
+                              { name: 'API Docs', page: 'ApiDocs', active: true }
+                            ].map(item => (
+                              <Link
+                                key={item.page}
+                                to={createPageUrl(item.page)}
+                                className={`px-3 py-2 text-sm rounded transition-colors ${
+                                  item.active 
+                                    ? 'bg-slate-900 text-red-400' 
+                                    : item.special
+                                    ? 'bg-red-600/20 text-red-400 hover:bg-red-600/30'
+                                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
+                                }`}
+                              >
+                                {item.name}
+                              </Link>
+                            ))}
+                          </nav>
           </div>
         </div>
       </header>
