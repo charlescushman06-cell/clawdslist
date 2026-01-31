@@ -121,6 +121,7 @@ export default function ProtocolRevenue() {
                 { name: 'Tasks', page: 'Tasks' },
                 { name: 'Workers', page: 'Workers' },
                 { name: 'Revenue', page: 'ProtocolRevenue', active: true },
+                      { name: 'Settings', page: 'Settings' },
                 { name: 'API Docs', page: 'ApiDocs' }
               ].map(item => (
                 <Link
