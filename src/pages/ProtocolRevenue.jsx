@@ -13,7 +13,9 @@ import {
   RefreshCw,
   ChevronRight,
   Send,
-  ExternalLink
+  ExternalLink,
+  AlertTriangle,
+  Settings
 } from 'lucide-react';
 import { format, subDays, subHours } from 'date-fns';
 
@@ -22,6 +24,19 @@ export default function ProtocolRevenue() {
   const [limit, setLimit] = useState(50);
   const [sweepChainFilter, setSweepChainFilter] = useState('all');
   const [sweepStatusFilter, setSweepStatusFilter] = useState('all');
+
+  // Fetch treasury config status
+  const { data: treasuryConfig } = useQuery({
+    queryKey: ['treasury-config'],
+    queryFn: async () => {
+      const res = await base44.functions.invoke('adminProtocol', {
+        action: 'get_treasury_addresses'
+      });
+      return res.data;
+    }
+  });
+
+  const treasuryReady = treasuryConfig?.treasury_ready === true;
 
   const { data: balances, isLoading: balancesLoading, refetch: refetchBalances } = useQuery({
     queryKey: ['protocol-balances'],
@@ -128,6 +143,28 @@ export default function ProtocolRevenue() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* Treasury Warning Banner */}
+        {!treasuryReady && (
+          <div className="mb-6 p-4 bg-amber-900/20 border border-amber-900/50 rounded-lg flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm text-amber-400 font-medium">Treasury Not Configured</p>
+              <p className="text-xs text-slate-400 mt-1">
+                Protocol fee sweeps are disabled until treasury addresses are configured. 
+                {treasuryConfig?.validation?.status === 'treasury_invalid' 
+                  ? ' Current addresses are invalid.' 
+                  : ' No addresses have been set.'}
+              </p>
+            </div>
+            <Link 
+              to={createPageUrl('Settings')}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white rounded transition-colors"
+            >
+              <Settings className="w-3 h-3" /> Configure
+            </Link>
+          </div>
+        )}
+
         {/* Toolbar */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg text-slate-200">Protocol Balances</h2>
@@ -194,11 +231,14 @@ export default function ProtocolRevenue() {
         </div>
 
         {/* Sweep History */}
-        <div className="bg-slate-950 border border-red-900/50 rounded-lg mb-8">
+        <div className={`bg-slate-950 border rounded-lg mb-8 ${!treasuryReady ? 'border-amber-900/50 opacity-75' : 'border-red-900/50'}`}>
           <div className="flex items-center justify-between p-4 border-b border-red-900/30">
             <div className="flex items-center gap-2">
-              <Send className="w-4 h-4 text-red-500" />
+              <Send className={`w-4 h-4 ${!treasuryReady ? 'text-amber-500' : 'text-red-500'}`} />
               <h3 className="text-sm uppercase tracking-wider text-slate-400">Sweep History</h3>
+              {!treasuryReady && (
+                <span className="text-xs text-amber-500 ml-2">(Sweeps disabled)</span>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <Select value={sweepChainFilter} onValueChange={setSweepChainFilter}>
