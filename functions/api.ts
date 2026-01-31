@@ -519,6 +519,29 @@ Deno.serve(async (req) => {
       });
     }
     
+    // Admin-only: Get protocol balances
+    if (action === 'admin_protocol_balances') {
+      const user = await base44.auth.me();
+      if (!user || user.role !== 'admin') {
+        return errorResponse('WORKER_SUSPENDED', 'Admin access required');
+      }
+
+      const protocolAccounts = await base44.asServiceRole.entities.LedgerAccount.filter({
+        owner_type: 'protocol'
+      });
+
+      const balances = {};
+      for (const account of protocolAccounts) {
+        balances[account.chain] = {
+          available_balance: account.available_balance,
+          locked_balance: account.locked_balance,
+          updated_at: account.updated_date
+        };
+      }
+
+      return successResponse(balances);
+    }
+
     // Get worker status
     if (action === 'worker_status') {
       return successResponse({
