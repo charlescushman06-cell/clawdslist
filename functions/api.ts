@@ -1164,12 +1164,28 @@ Deno.serve(async (req) => {
         new_locked: newLocked
       });
 
+      // Trigger risk assessment and auto-approval check
+      let riskResult = null;
+      try {
+        const riskResponse = await base44.asServiceRole.functions.invoke('withdrawalRisk', {
+          action: 'process_withdrawal',
+          withdrawal_id: withdrawal.id
+        });
+        riskResult = riskResponse.data || riskResponse;
+      } catch (err) {
+        console.error('Risk assessment failed:', err);
+        // Continue with 'requested' status if risk engine fails
+      }
+
       return successResponse({
         withdrawal_id: withdrawal.id,
         chain,
         amount,
         destination_address,
-        status: 'requested',
+        status: riskResult?.status || 'requested',
+        risk_score: riskResult?.risk_score,
+        risk_reasons: riskResult?.risk_reasons,
+        auto_approved: riskResult?.auto_approved || false,
         balance: {
           available: newAvailable,
           locked: newLocked

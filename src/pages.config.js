@@ -58,6 +58,7 @@ import Settings from './pages/Settings';
 import Submissions from './pages/Submissions';
 import Tasks from './pages/Tasks';
 import Workers from './pages/Workers';
+import Withdrawals from './pages/Withdrawals';
 
 
 export const PAGES = {
@@ -72,6 +73,7 @@ export const PAGES = {
     "Submissions": Submissions,
     "Tasks": Tasks,
     "Workers": Workers,
+    "Withdrawals": Withdrawals,
 }
 
 export const pagesConfig = {
