@@ -13,7 +13,9 @@ import {
   CheckCircle, 
   AlertCircle,
   Loader2,
-  ShieldCheck
+  ShieldCheck,
+  MapPin,
+  Copy
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -50,6 +52,19 @@ export default function Settings() {
         action: 'get_treasury_addresses'
       });
       return res.data;
+    },
+    enabled: user?.role === 'admin'
+  });
+
+  // Fetch tracked addresses
+  const { data: trackedAddresses = [] } = useQuery({
+    queryKey: ['tracked-addresses'],
+    queryFn: async () => {
+      const res = await base44.functions.invoke('adminProtocol', {
+        action: 'get_tracked_addresses',
+        limit: 200
+      });
+      return res.data?.addresses || [];
     },
     enabled: user?.role === 'admin'
   });
@@ -265,6 +280,63 @@ export default function Settings() {
               <p className="text-xs text-slate-600">
                 Last updated: {new Date(treasuryConfig.updated_at).toLocaleString()}
               </p>
+            )}
+          </div>
+        </div>
+
+        {/* Tracked Addresses Section */}
+        <div className="mt-6 bg-slate-950 border border-red-900/50 rounded-lg">
+          <div className="p-4 border-b border-red-900/30 flex items-center gap-3">
+            <MapPin className="w-5 h-5 text-red-500" />
+            <div>
+              <h2 className="text-lg text-slate-100">Tracked Addresses</h2>
+              <p className="text-xs text-slate-500">Addresses registered for deposit monitoring</p>
+            </div>
+            <span className="ml-auto text-xs text-slate-500">{trackedAddresses.length} registered</span>
+          </div>
+
+          <div className="divide-y divide-red-900/30 max-h-96 overflow-y-auto">
+            {trackedAddresses.length === 0 ? (
+              <div className="p-6 text-center text-slate-500 text-sm">
+                No tracked addresses yet
+              </div>
+            ) : (
+              trackedAddresses.map((addr) => (
+                <div key={addr.id} className="p-3 flex items-center gap-3 hover:bg-slate-900/30">
+                  <span className={`px-2 py-0.5 text-xs rounded ${
+                    addr.chain === 'ETH' ? 'bg-blue-900/50 text-blue-400' : 'bg-orange-900/50 text-orange-400'
+                  }`}>
+                    {addr.chain}
+                  </span>
+                  <span className={`px-2 py-0.5 text-xs rounded ${
+                    addr.owner_type === 'protocol' ? 'bg-red-900/50 text-red-400' : 'bg-green-900/50 text-green-400'
+                  }`}>
+                    {addr.owner_type}
+                  </span>
+                  <span className={`px-2 py-0.5 text-xs rounded ${
+                    addr.purpose === 'treasury' ? 'bg-purple-900/50 text-purple-400' : 'bg-cyan-900/50 text-cyan-400'
+                  }`}>
+                    {addr.purpose}
+                  </span>
+                  <code className="flex-1 font-mono text-xs text-slate-400 truncate">
+                    {addr.address}
+                  </code>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(addr.address);
+                      toast.success('Address copied');
+                    }}
+                    className="p-1 text-slate-500 hover:text-slate-300"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                  {addr.owner_id && (
+                    <span className="text-xs text-slate-600 truncate max-w-[80px]" title={addr.owner_id}>
+                      {addr.owner_id.slice(0, 8)}...
+                    </span>
+                  )}
+                </div>
+              ))
             )}
           </div>
         </div>
