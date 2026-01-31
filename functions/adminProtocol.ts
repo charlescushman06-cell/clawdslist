@@ -834,6 +834,44 @@ Deno.serve(async (req) => {
       return Response.json({ addresses });
     }
 
+    // GET pending deposits
+    if (action === 'get_deposits') {
+      const { chain, status, owner_type, limit = 100 } = body;
+      
+      const filter = {};
+      if (chain) filter.chain = chain;
+      if (status) filter.status = status;
+      if (owner_type) filter.owner_type = owner_type;
+
+      const deposits = await base44.asServiceRole.entities.PendingDeposit.filter(
+        filter,
+        '-created_date',
+        limit
+      );
+
+      return Response.json({ deposits });
+    }
+
+    // GET deposit by tx_hash
+    if (action === 'get_deposit') {
+      const { chain, tx_hash } = body;
+      
+      if (!chain || !tx_hash) {
+        return Response.json({ error: 'chain and tx_hash required' }, { status: 400 });
+      }
+
+      const deposits = await base44.asServiceRole.entities.PendingDeposit.filter({
+        chain,
+        tx_hash
+      });
+
+      if (deposits.length === 0) {
+        return Response.json({ error: 'Deposit not found' }, { status: 404 });
+      }
+
+      return Response.json({ deposit: deposits[0] });
+    }
+
     return Response.json({ error: 'Unknown action' }, { status: 400 });
   } catch (error) {
     console.error('Admin protocol error:', error);
