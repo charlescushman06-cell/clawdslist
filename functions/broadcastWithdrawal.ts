@@ -347,9 +347,10 @@ async function broadcastWithdrawal(base44, withdrawalId) {
     return {
       withdrawal_id: withdrawalId,
       status: 'failed',
+      rejection_reason: broadcastError,
       chain,
       amount,
-      error: broadcastError,
+      destination_address: destinationAddress,
       refunded: true
     };
   }

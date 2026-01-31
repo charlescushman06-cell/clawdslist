@@ -445,9 +445,12 @@ async function processWithdrawalRequest(base44, withdrawalId) {
 
   // ========== VALIDATE MINIMUM AMOUNT ==========
   if (compareDecimal(withdrawal.amount, config.MIN_AMOUNT) < 0) {
+    const rejectionReason = `Amount ${withdrawal.amount} ${chain} below minimum ${config.MIN_AMOUNT} ${chain}`;
+    console.log(`[withdrawalRisk] REJECTED - ${rejectionReason}`);
+    
     await base44.asServiceRole.entities.WithdrawalRequest.update(withdrawalId, {
       status: 'rejected',
-      failure_reason: `Amount below minimum ${config.MIN_AMOUNT} ${chain}`
+      failure_reason: rejectionReason
     });
     
     await unlockWithdrawalFunds(base44, withdrawal);
@@ -471,7 +474,10 @@ async function processWithdrawalRequest(base44, withdrawalId) {
     return {
       withdrawal_id: withdrawalId,
       status: 'rejected',
-      reason: `Amount below minimum ${config.MIN_AMOUNT} ${chain}`
+      rejection_reason: rejectionReason,
+      amount: withdrawal.amount,
+      min_amount: config.MIN_AMOUNT,
+      chain
     };
   }
   
@@ -740,9 +746,12 @@ Deno.serve(async (req) => {
         return Response.json({ withdrawal_id, status: 'approved', admin_approved: true });
 
       } else if (decision === 'reject') {
+        const rejectionReason = reason || 'Rejected by admin';
+        console.log(`[withdrawalRisk] Admin REJECTED withdrawal ${withdrawal_id}: ${rejectionReason}`);
+        
         await base44.asServiceRole.entities.WithdrawalRequest.update(withdrawal_id, {
           status: 'rejected',
-          failure_reason: reason || 'Rejected by admin'
+          failure_reason: rejectionReason
         });
 
         await unlockWithdrawalFunds(base44, withdrawal);
@@ -756,11 +765,11 @@ Deno.serve(async (req) => {
           details: JSON.stringify({
             withdrawal_id,
             status: 'admin_rejected',
-            reason
+            reason: rejectionReason
           })
         });
 
-        return Response.json({ withdrawal_id, status: 'rejected', reason });
+        return Response.json({ withdrawal_id, status: 'rejected', rejection_reason: rejectionReason });
       }
 
       return Response.json({ error: 'Invalid decision' }, { status: 400 });

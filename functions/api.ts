@@ -865,6 +865,9 @@ Deno.serve(async (req) => {
       return successResponse({
         withdrawal_id: withdrawal.id,
         status: riskResult?.status || 'requested',
+        rejection_reason: riskResult?.rejection_reason || riskResult?.reason || null,
+        risk_score: riskResult?.risk_score,
+        risk_reasons: riskResult?.risk_reasons,
         amount: withdrawAmount,
         chain: chain,
         destination_address: destination_address,
@@ -1501,6 +1504,7 @@ Deno.serve(async (req) => {
         amount,
         destination_address,
         status: riskResult?.status || 'requested',
+        rejection_reason: riskResult?.rejection_reason || riskResult?.reason || null,
         risk_score: riskResult?.risk_score,
         risk_reasons: riskResult?.risk_reasons,
         auto_approved: riskResult?.auto_approved || false,
