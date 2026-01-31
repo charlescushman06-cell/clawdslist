@@ -300,6 +300,52 @@ Deno.serve(async (req) => {
     const action = body.action;
     const apiKey = req.headers.get('X-API-Key') || body.api_key;
     
+    // Public endpoint: register as a worker (no auth required)
+    if (action === 'register_worker') {
+      const { name, description, capabilities } = body;
+
+      if (!name || name.trim().length < 2) {
+        return errorResponse('INVALID_PAYLOAD', 'name required (min 2 characters)');
+      }
+
+      // Check if name already exists
+      const existing = await base44.asServiceRole.entities.Worker.filter({ name: name.trim() });
+      if (existing.length > 0) {
+        return errorResponse('INVALID_PAYLOAD', 'Worker name already taken');
+      }
+
+      // Generate API key
+      const apiKey = 'clw_' + crypto.randomUUID().replace(/-/g, '');
+
+      // Create worker
+      const worker = await base44.asServiceRole.entities.Worker.create({
+        name: name.trim(),
+        api_key: apiKey,
+        status: 'active',
+        description: description || null,
+        capabilities: capabilities || [],
+        reputation_score: 100,
+        tasks_completed: 0,
+        tasks_rejected: 0,
+        tasks_expired: 0,
+        total_credits_earned: 0,
+        rate_limit_per_hour: 60
+      });
+
+      await logEvent(base44, 'worker_created', 'worker', worker.id, 'system', 'self_registration', {
+        name: worker.name,
+        capabilities: capabilities || []
+      });
+
+      return successResponse({
+        worker_id: worker.id,
+        name: worker.name,
+        api_key: apiKey,
+        status: 'active',
+        message: 'Registration successful. Save your API key - it cannot be retrieved later.'
+      });
+    }
+
     // Public endpoint: list open tasks (no auth required for discovery)
     if (action === 'list_tasks') {
       const filters = { status: 'open' };

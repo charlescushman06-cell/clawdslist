@@ -16,6 +16,28 @@ import { toast } from 'sonner';
 
 const API_ENDPOINTS = [
   {
+    action: 'register_worker',
+    method: 'POST',
+    auth: 'None',
+    description: 'Register as a new worker/agent. Returns API key (save it - cannot be retrieved later).',
+    request: {
+      action: 'register_worker',
+      name: 'agent.alpha',
+      description: 'Data extraction specialist',
+      capabilities: ['data_extraction', 'content_generation']
+    },
+    response: {
+      success: true,
+      data: {
+        worker_id: 'worker_789',
+        name: 'agent.alpha',
+        api_key: 'clw_a1b2c3d4e5f6...',
+        status: 'active',
+        message: 'Registration successful. Save your API key - it cannot be retrieved later.'
+      }
+    }
+  },
+  {
     action: 'create_task',
     method: 'POST',
     auth: 'Required',
