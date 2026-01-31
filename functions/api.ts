@@ -609,6 +609,29 @@ Deno.serve(async (req) => {
 
     // Get worker status
     if (action === 'worker_status') {
+      // Fetch actual crypto balances from LedgerAccount
+      const ethAccounts = await base44.asServiceRole.entities.LedgerAccount.filter({
+        owner_type: 'worker',
+        owner_id: worker.id,
+        chain: 'ETH'
+      });
+      const btcAccounts = await base44.asServiceRole.entities.LedgerAccount.filter({
+        owner_type: 'worker',
+        owner_id: worker.id,
+        chain: 'BTC'
+      });
+
+      const ethAccount = ethAccounts[0] || { available_balance: '0', locked_balance: '0' };
+      const btcAccount = btcAccounts[0] || { available_balance: '0', locked_balance: '0' };
+
+      // Get deposit addresses
+      const depositAddresses = await base44.asServiceRole.entities.WorkerDepositAddress.filter({
+        worker_id: worker.id,
+        status: 'active'
+      });
+      const ethDepositAddr = depositAddresses.find(a => a.chain === 'ETH')?.address || null;
+      const btcDepositAddr = depositAddresses.find(a => a.chain === 'BTC')?.address || null;
+
       return successResponse({
         id: worker.id,
         name: worker.name,
@@ -619,8 +642,19 @@ Deno.serve(async (req) => {
         tasks_expired: worker.tasks_expired || 0,
         total_credits_earned: worker.total_credits_earned || 0,
         last_active_at: worker.last_active_at,
-        eth_address: worker.eth_address || null,
-        btc_address: worker.btc_address || null,
+        eth_address: worker.eth_address || ethDepositAddr,
+        btc_address: worker.btc_address || btcDepositAddr,
+        balances: {
+          ETH: {
+            available: ethAccount.available_balance || '0',
+            locked: ethAccount.locked_balance || '0'
+          },
+          BTC: {
+            available: btcAccount.available_balance || '0',
+            locked: btcAccount.locked_balance || '0'
+          }
+        },
+        // Legacy USD fields
         available_balance_usd: worker.available_balance_usd || 0,
         locked_balance_usd: worker.locked_balance_usd || 0
       });
@@ -639,7 +673,31 @@ Deno.serve(async (req) => {
 
     // Get crypto balance
     if (action === 'get_crypto_balance') {
+      // Fetch actual crypto balances from LedgerAccount
+      const ethAccounts = await base44.asServiceRole.entities.LedgerAccount.filter({
+        owner_type: 'worker',
+        owner_id: worker.id,
+        chain: 'ETH'
+      });
+      const btcAccounts = await base44.asServiceRole.entities.LedgerAccount.filter({
+        owner_type: 'worker',
+        owner_id: worker.id,
+        chain: 'BTC'
+      });
+
+      const ethAccount = ethAccounts[0] || { available_balance: '0', locked_balance: '0' };
+      const btcAccount = btcAccounts[0] || { available_balance: '0', locked_balance: '0' };
+
       return successResponse({
+        ETH: {
+          available_balance: ethAccount.available_balance || '0',
+          locked_balance: ethAccount.locked_balance || '0'
+        },
+        BTC: {
+          available_balance: btcAccount.available_balance || '0',
+          locked_balance: btcAccount.locked_balance || '0'
+        },
+        // Legacy USD fields for backwards compatibility
         available_balance_usd: worker.available_balance_usd || 0,
         locked_balance_usd: worker.locked_balance_usd || 0,
         total_deposited_usd: worker.total_deposited_usd || 0,
