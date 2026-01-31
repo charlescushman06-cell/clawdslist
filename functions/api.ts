@@ -964,6 +964,237 @@ Deno.serve(async (req) => {
       });
     }
     
+    // Get payout addresses
+    if (action === 'get_payout_addresses') {
+      const addresses = await base44.asServiceRole.entities.WorkerPayoutAddress.filter({
+        worker_id: worker.id
+      });
+
+      return successResponse(addresses.map(a => ({
+        id: a.id,
+        chain: a.chain,
+        address: a.address,
+        label: a.label,
+        is_verified: a.is_verified || false,
+        added_at: a.created_date
+      })));
+    }
+
+    // Add payout address
+    if (action === 'add_payout_address') {
+      const { chain, address, label } = body;
+
+      if (!chain || !['ETH', 'BTC'].includes(chain)) {
+        return errorResponse('INVALID_PAYLOAD', 'chain must be ETH or BTC');
+      }
+      if (!address) {
+        return errorResponse('INVALID_PAYLOAD', 'address required');
+      }
+
+      // Validate address format
+      if (chain === 'ETH' && !/^0x[a-fA-F0-9]{40}$/.test(address)) {
+        return errorResponse('INVALID_PAYLOAD', 'Invalid ETH address format');
+      }
+      if (chain === 'BTC') {
+        const btcValid = /^(1|3)[a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(address) || 
+                         /^bc1[a-z0-9]{39,59}$/.test(address);
+        if (!btcValid) {
+          return errorResponse('INVALID_PAYLOAD', 'Invalid BTC address format');
+        }
+      }
+
+      // Check if already exists
+      const existing = await base44.asServiceRole.entities.WorkerPayoutAddress.filter({
+        worker_id: worker.id,
+        chain,
+        address
+      });
+
+      if (existing.length > 0) {
+        return successResponse({
+          id: existing[0].id,
+          chain,
+          address,
+          label: existing[0].label,
+          is_verified: existing[0].is_verified,
+          message: 'Address already exists'
+        });
+      }
+
+      // Create new payout address
+      const payoutAddr = await base44.asServiceRole.entities.WorkerPayoutAddress.create({
+        worker_id: worker.id,
+        chain,
+        address,
+        label: label || null,
+        is_verified: false
+      });
+
+      await logEvent(base44, 'payout_address_added', 'worker', worker.id, 'worker', worker.id, {
+        chain,
+        address,
+        label
+      });
+
+      return successResponse({
+        id: payoutAddr.id,
+        chain,
+        address,
+        label: payoutAddr.label,
+        is_verified: false,
+        message: 'Payout address added'
+      });
+    }
+
+    // Request withdrawal
+    if (action === 'request_withdrawal') {
+      const { chain, amount, destination_address } = body;
+
+      if (!chain || !['ETH', 'BTC'].includes(chain)) {
+        return errorResponse('INVALID_PAYLOAD', 'chain must be ETH or BTC');
+      }
+      if (!amount || parseFloat(amount) <= 0) {
+        return errorResponse('INVALID_PAYLOAD', 'Valid amount required');
+      }
+      if (!destination_address) {
+        return errorResponse('INVALID_PAYLOAD', 'destination_address required');
+      }
+
+      // Get worker's ledger account for this chain
+      const accounts = await base44.asServiceRole.entities.LedgerAccount.filter({
+        owner_type: 'worker',
+        owner_id: worker.id,
+        chain
+      });
+
+      if (accounts.length === 0) {
+        return errorResponse('INSUFFICIENT_BALANCE', `No ${chain} balance available`);
+      }
+
+      const account = accounts[0];
+      const availableBalance = account.available_balance || '0';
+
+      // Decimal comparison
+      const toScaled = (amt) => {
+        if (!amt) return 0n;
+        if (typeof amt === 'string') {
+          const [whole, frac = ''] = amt.split('.');
+          return BigInt(whole + frac.padEnd(18, '0').slice(0, 18));
+        }
+        return BigInt(Math.round(Number(amt) * 1e18));
+      };
+
+      if (toScaled(amount) > toScaled(availableBalance)) {
+        return errorResponse('INSUFFICIENT_BALANCE', `Available: ${availableBalance} ${chain}`);
+      }
+
+      // Check destination is in payout addresses (auto-add if not)
+      const payoutAddrs = await base44.asServiceRole.entities.WorkerPayoutAddress.filter({
+        worker_id: worker.id,
+        chain,
+        address: destination_address
+      });
+
+      if (payoutAddrs.length === 0) {
+        // Auto-add the address
+        await base44.asServiceRole.entities.WorkerPayoutAddress.create({
+          worker_id: worker.id,
+          chain,
+          address: destination_address,
+          label: 'Auto-added on withdrawal',
+          is_verified: false
+        });
+
+        await logEvent(base44, 'payout_address_added', 'worker', worker.id, 'worker', worker.id, {
+          chain,
+          address: destination_address,
+          auto_added: true
+        });
+      }
+
+      // Lock funds: available -> locked
+      const fromScaled = (scaled) => {
+        const str = scaled.toString().padStart(19, '0');
+        const whole = str.slice(0, -18) || '0';
+        const frac = str.slice(-18).replace(/0+$/, '') || '0';
+        return frac === '0' ? whole : `${whole}.${frac}`;
+      };
+
+      const newAvailable = fromScaled(toScaled(availableBalance) - toScaled(amount));
+      const newLocked = fromScaled(toScaled(account.locked_balance || '0') + toScaled(amount));
+
+      await base44.asServiceRole.entities.LedgerAccount.update(account.id, {
+        available_balance: newAvailable,
+        locked_balance: newLocked
+      });
+
+      // Create withdrawal request
+      const withdrawal = await base44.asServiceRole.entities.WithdrawalRequest.create({
+        worker_id: worker.id,
+        chain,
+        amount,
+        destination_address,
+        status: 'requested',
+        risk_score: 0,
+        risk_reasons: '[]'
+      });
+
+      // Create ledger entry
+      await base44.asServiceRole.entities.LedgerEntry.create({
+        chain,
+        amount,
+        entry_type: 'lock',
+        from_owner_type: 'worker',
+        from_owner_id: worker.id,
+        to_owner_type: 'worker',
+        to_owner_id: worker.id,
+        metadata: JSON.stringify({
+          withdrawal_id: withdrawal.id,
+          destination_address,
+          action: 'withdrawal_requested'
+        })
+      });
+
+      await logEvent(base44, 'withdrawal_requested', 'worker', worker.id, 'worker', worker.id, {
+        chain,
+        amount,
+        destination_address,
+        withdrawal_id: withdrawal.id,
+        new_available: newAvailable,
+        new_locked: newLocked
+      });
+
+      return successResponse({
+        withdrawal_id: withdrawal.id,
+        chain,
+        amount,
+        destination_address,
+        status: 'requested',
+        balance: {
+          available: newAvailable,
+          locked: newLocked
+        }
+      });
+    }
+
+    // Get withdrawal history
+    if (action === 'get_withdrawals') {
+      const withdrawals = await base44.asServiceRole.entities.WithdrawalRequest.filter({
+        worker_id: worker.id
+      }, '-created_date', body.limit || 50);
+
+      return successResponse(withdrawals.map(w => ({
+        id: w.id,
+        chain: w.chain,
+        amount: w.amount,
+        destination_address: w.destination_address,
+        status: w.status,
+        tx_hash: w.tx_hash,
+        created_at: w.created_date,
+        updated_at: w.updated_date
+      })));
+    }
+
     // Get task progress (with milestones)
     if (action === 'get_task_progress') {
       if (!body.task_id) return errorResponse('INVALID_PAYLOAD', 'task_id required');
