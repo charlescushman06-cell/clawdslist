@@ -15,7 +15,10 @@ import {
   Loader2,
   ShieldCheck,
   MapPin,
-  Copy
+  Copy,
+  ArrowDownCircle,
+  Clock,
+  ExternalLink
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -65,6 +68,19 @@ export default function Settings() {
         limit: 200
       });
       return res.data?.addresses || [];
+    },
+    enabled: user?.role === 'admin'
+  });
+
+  // Fetch pending deposits
+  const { data: deposits = [] } = useQuery({
+    queryKey: ['pending-deposits'],
+    queryFn: async () => {
+      const res = await base44.functions.invoke('adminProtocol', {
+        action: 'get_deposits',
+        limit: 100
+      });
+      return res.data?.deposits || [];
     },
     enabled: user?.role === 'admin'
   });
@@ -295,7 +311,7 @@ export default function Settings() {
             <span className="ml-auto text-xs text-slate-500">{trackedAddresses.length} registered</span>
           </div>
 
-          <div className="divide-y divide-red-900/30 max-h-96 overflow-y-auto">
+          <div className="divide-y divide-red-900/30 max-h-64 overflow-y-auto">
             {trackedAddresses.length === 0 ? (
               <div className="p-6 text-center text-slate-500 text-sm">
                 No tracked addresses yet
@@ -335,6 +351,91 @@ export default function Settings() {
                       {addr.owner_id.slice(0, 8)}...
                     </span>
                   )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Pending Deposits Section */}
+        <div className="mt-6 bg-slate-950 border border-red-900/50 rounded-lg">
+          <div className="p-4 border-b border-red-900/30 flex items-center gap-3">
+            <ArrowDownCircle className="w-5 h-5 text-red-500" />
+            <div>
+              <h2 className="text-lg text-slate-100">Deposits</h2>
+              <p className="text-xs text-slate-500">Incoming deposits from Tatum webhooks</p>
+            </div>
+            <span className="ml-auto text-xs text-slate-500">{deposits.length} total</span>
+          </div>
+
+          <div className="divide-y divide-red-900/30 max-h-80 overflow-y-auto">
+            {deposits.length === 0 ? (
+              <div className="p-6 text-center text-slate-500 text-sm">
+                No deposits yet
+              </div>
+            ) : (
+              deposits.map((dep) => (
+                <div key={dep.id} className="p-3 hover:bg-slate-900/30">
+                  <div className="flex items-center gap-3">
+                    <span className={`px-2 py-0.5 text-xs rounded ${
+                      dep.chain === 'ETH' ? 'bg-blue-900/50 text-blue-400' : 'bg-orange-900/50 text-orange-400'
+                    }`}>
+                      {dep.chain}
+                    </span>
+                    <span className={`px-2 py-0.5 text-xs rounded ${
+                      dep.status === 'credited' ? 'bg-green-900/50 text-green-400' :
+                      dep.status === 'confirming' ? 'bg-yellow-900/50 text-yellow-400' :
+                      dep.status === 'ignored' ? 'bg-slate-700/50 text-slate-400' :
+                      'bg-blue-900/50 text-blue-400'
+                    }`}>
+                      {dep.status}
+                    </span>
+                    <span className="text-sm text-slate-200 font-mono">
+                      {dep.amount} {dep.chain}
+                    </span>
+                    <span className="flex items-center gap-1 text-xs text-slate-500">
+                      <Clock className="w-3 h-3" />
+                      {dep.confirmations}/{dep.chain === 'ETH' ? 12 : 3}
+                    </span>
+                    {dep.owner_type && (
+                      <span className={`px-2 py-0.5 text-xs rounded ${
+                        dep.owner_type === 'protocol' ? 'bg-red-900/50 text-red-400' : 'bg-green-900/50 text-green-400'
+                      }`}>
+                        {dep.owner_type}
+                      </span>
+                    )}
+                    <span className="ml-auto text-xs text-slate-600">
+                      {new Date(dep.first_seen_at || dep.created_date).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <code className="font-mono text-xs text-slate-500 truncate flex-1">
+                      tx: {dep.tx_hash}
+                    </code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(dep.tx_hash);
+                        toast.success('TX hash copied');
+                      }}
+                      className="p-1 text-slate-500 hover:text-slate-300"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                    <a
+                      href={dep.chain === 'ETH' 
+                        ? `https://etherscan.io/tx/${dep.tx_hash}`
+                        : `https://mempool.space/tx/${dep.tx_hash}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1 text-slate-500 hover:text-slate-300"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                  <code className="block mt-1 font-mono text-xs text-slate-600 truncate">
+                    addr: {dep.address}
+                  </code>
                 </div>
               ))
             )}
