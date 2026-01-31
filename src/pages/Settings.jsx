@@ -108,7 +108,8 @@ export default function Settings() {
 
   const ethValid = /^0x[a-fA-F0-9]{40}$/.test(ethAddress);
   const btcValid = !btcAddress || /^(1|3)[a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(btcAddress) || /^bc1[a-z0-9]{39,59}$/.test(btcAddress);
-  const isLocked = treasuryConfig?.treasury_ready === true;
+  const isEthLocked = treasuryConfig?.treasury_ready === true;
+  const isBtcLocked = treasuryConfig?.btc_treasury_address && treasuryConfig?.validation?.btc_valid;
 
   return (
     <div className="min-h-screen bg-black text-slate-100">
@@ -195,10 +196,10 @@ export default function Settings() {
                   value={ethAddress}
                   onChange={(e) => setEthAddress(e.target.value)}
                   placeholder="0x..."
-                  disabled={isLocked}
+                  disabled={isEthLocked}
                   className={`bg-black border-red-900/50 text-slate-100 font-mono text-sm ${
                     ethAddress && !ethValid ? 'border-red-500' : ''
-                  } ${isLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  } ${isEthLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
                 {ethAddress && (
                   <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs ${
@@ -209,7 +210,7 @@ export default function Settings() {
                 )}
               </div>
               <p className="text-xs text-slate-500">
-                {isLocked ? 'Address is locked and cannot be changed' : 'Required. Format: 0x + 40 hex characters'}
+                {isEthLocked ? 'Address is locked and cannot be changed' : 'Required. Format: 0x + 40 hex characters'}
               </p>
             </div>
 
@@ -223,10 +224,10 @@ export default function Settings() {
                   value={btcAddress}
                   onChange={(e) => setBtcAddress(e.target.value)}
                   placeholder="1... or 3... or bc1..."
-                  disabled={isLocked}
+                  disabled={isBtcLocked}
                   className={`bg-black border-red-900/50 text-slate-100 font-mono text-sm ${
                     btcAddress && !btcValid ? 'border-red-500' : ''
-                  } ${isLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  } ${isBtcLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
                 {btcAddress && (
                   <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs ${
@@ -237,12 +238,12 @@ export default function Settings() {
                 )}
               </div>
               <p className="text-xs text-slate-500">
-                {isLocked ? 'Address is locked and cannot be changed' : 'Supports P2PKH (1...), P2SH (3...), and Bech32 (bc1...)'}
+                {isBtcLocked ? 'Address is locked and cannot be changed' : 'Supports P2PKH (1...), P2SH (3...), and Bech32 (bc1...)'}
               </p>
             </div>
 
             {/* Save Button */}
-            {!isLocked && (
+            {(!isEthLocked || !isBtcLocked) && (
               <div className="pt-4 border-t border-red-900/30">
                 <Button
                   onClick={() => saveMutation.mutate()}
@@ -254,7 +255,7 @@ export default function Settings() {
                   ) : (
                     <Save className="w-4 h-4 mr-2" />
                   )}
-                  Save Treasury Addresses
+                  {isEthLocked ? 'Save BTC Address' : 'Save Treasury Addresses'}
                 </Button>
               </div>
             )}

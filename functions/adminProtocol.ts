@@ -651,12 +651,22 @@ Deno.serve(async (req) => {
 
       if (existingConfigs.length > 0) {
         const existing = existingConfigs[0];
-        const alreadyConfigured = isValidEthAddress(existing.eth_treasury_address);
+        const ethAlreadyConfigured = isValidEthAddress(existing.eth_treasury_address);
+        const btcAlreadyConfigured = existing.btc_treasury_address && isValidBtcAddress(existing.btc_treasury_address);
         
-        if (alreadyConfigured) {
+        // ETH is locked once set
+        if (ethAlreadyConfigured && eth_treasury_address !== existing.eth_treasury_address) {
           return Response.json({ 
-            error: 'Treasury addresses are locked and cannot be changed once configured.',
-            status: 'treasury_locked'
+            error: 'ETH treasury address is locked and cannot be changed once configured.',
+            status: 'eth_treasury_locked'
+          }, { status: 403 });
+        }
+        
+        // BTC is locked once set
+        if (btcAlreadyConfigured && btc_treasury_address !== existing.btc_treasury_address) {
+          return Response.json({ 
+            error: 'BTC treasury address is locked and cannot be changed once configured.',
+            status: 'btc_treasury_locked'
           }, { status: 403 });
         }
       }
