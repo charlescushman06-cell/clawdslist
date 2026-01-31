@@ -644,6 +644,23 @@ Deno.serve(async (req) => {
     if (action === 'set_treasury_addresses') {
       const { eth_treasury_address, btc_treasury_address, notes } = body;
 
+      // Check if treasury is already configured (locked)
+      const existingConfigs = await base44.asServiceRole.entities.ProtocolConfig.filter({
+        config_key: 'treasury_addresses'
+      });
+
+      if (existingConfigs.length > 0) {
+        const existing = existingConfigs[0];
+        const alreadyConfigured = isValidEthAddress(existing.eth_treasury_address);
+        
+        if (alreadyConfigured) {
+          return Response.json({ 
+            error: 'Treasury addresses are locked and cannot be changed once configured.',
+            status: 'treasury_locked'
+          }, { status: 403 });
+        }
+      }
+
       if (!eth_treasury_address) {
         return Response.json({ error: 'eth_treasury_address is required' }, { status: 400 });
       }
