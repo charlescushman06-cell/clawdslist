@@ -1,7 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
 // TODO: Implement HMAC signature verification after basic connectivity confirmed
-// function verifyTatumSignature(req, bodyText) {
+// Uncomment and set TATUM_WEBHOOK_SECRET env var to enable
+// async function verifyTatumSignature(req, bodyText) {
 //   const signature = req.headers.get('x-payload-hash');
 //   const secret = Deno.env.get('TATUM_WEBHOOK_SECRET');
 //   if (!secret || !signature) return false;
