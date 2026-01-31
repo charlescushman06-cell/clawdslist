@@ -186,6 +186,111 @@ function getProvider() {
   return new TatumAdapter(apiKey, testnet);
 }
 
+// ============ ADDRESS RESOLUTION ============
+async function resolveUnmappedDeposits(base44, workerId, address, chain) {
+  // Find pending deposits with this address and no worker assigned
+  const unmappedDeposits = await base44.asServiceRole.entities.PendingDeposit.filter({
+    address: address,
+    chain: chain
+  });
+
+  const depositsToResolve = unmappedDeposits.filter(d => !d.worker_id);
+
+  if (depositsToResolve.length === 0) {
+    return;
+  }
+
+  for (const deposit of depositsToResolve) {
+    // Skip if already credited (idempotency check)
+    if (deposit.status === 'credited') {
+      continue;
+    }
+
+    // Assign worker
+    await base44.asServiceRole.entities.PendingDeposit.update(deposit.id, {
+      worker_id: workerId
+    });
+
+    // Log resolution event
+    await base44.asServiceRole.entities.Event.create({
+      event_type: 'funds_deposited',
+      entity_type: 'worker',
+      entity_id: workerId,
+      actor_type: 'system',
+      actor_id: 'crypto_provider',
+      details: JSON.stringify({
+        stage: 'address_resolved',
+        chain,
+        address,
+        txid: deposit.txid,
+        amount: deposit.amount,
+        amount_usd: deposit.amount_usd,
+        confirmations: deposit.confirmations,
+        provider: 'tatum'
+      })
+    });
+
+    // If already confirmed, credit immediately
+    if (deposit.status === 'confirmed' && deposit.confirmations >= deposit.required_confirmations) {
+      const worker = await base44.asServiceRole.entities.Worker.get(workerId);
+
+      // Credit balance
+      await base44.asServiceRole.entities.Worker.update(workerId, {
+        available_balance_usd: (worker.available_balance_usd || 0) + deposit.amount_usd,
+        total_deposited_usd: (worker.total_deposited_usd || 0) + deposit.amount_usd
+      });
+
+      // Create transaction record
+      await base44.asServiceRole.entities.Transaction.create({
+        transaction_type: 'deposit',
+        worker_id: workerId,
+        amount_usd: deposit.amount_usd,
+        balance_type: 'available',
+        status: 'completed',
+        metadata: JSON.stringify({
+          chain,
+          crypto_amount: deposit.amount,
+          txid: deposit.txid,
+          address,
+          confirmations: deposit.confirmations,
+          resolved: true,
+          provider: 'tatum'
+        }),
+        notes: `${chain} deposit credited (resolved from unmapped address)`
+      });
+
+      // Mark as credited
+      await base44.asServiceRole.entities.PendingDeposit.update(deposit.id, {
+        status: 'credited'
+      });
+
+      // Log credit event
+      await base44.asServiceRole.entities.Event.create({
+        event_type: 'funds_deposited',
+        entity_type: 'worker',
+        entity_id: workerId,
+        actor_type: 'system',
+        actor_id: 'crypto_provider',
+        details: JSON.stringify({
+          stage: 'credited',
+          chain,
+          address,
+          amount: deposit.amount,
+          amount_usd: deposit.amount_usd,
+          txid: deposit.txid,
+          confirmations: deposit.confirmations,
+          resolved: true,
+          provider: 'tatum'
+        })
+      });
+
+      console.log(`Resolved and credited deposit to worker ${workerId}: ${deposit.amount} ${chain} = $${deposit.amount_usd}`);
+    } else {
+      console.log(`Resolved deposit (awaiting confirmations): ${deposit.txid}`);
+    }
+  }
+}
+
 // ============ API ENDPOINT ============
 Deno.serve(async (req) => {
   try {
@@ -210,6 +315,9 @@ Deno.serve(async (req) => {
           : { btc_address: result.address };
         
         await base44.entities.Worker.update(worker_id, updateData);
+
+        // Resolve any pending deposits for this address
+        await resolveUnmappedDeposits(base44, worker_id, result.address, chain);
 
         // Log event
         await base44.entities.Event.create({

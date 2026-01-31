@@ -37,6 +37,27 @@ async function handleDepositDetected(base44, payload) {
 
   const workerId = workers.length > 0 ? workers[0].id : null;
 
+  // If no worker found, log unmapped address event
+  if (!workerId) {
+    await base44.asServiceRole.entities.Event.create({
+      event_type: 'system_error',
+      entity_type: 'transaction',
+      entity_id: txid,
+      actor_type: 'system',
+      actor_id: 'crypto_provider',
+      details: JSON.stringify({
+        stage: 'deposit_unmapped_address',
+        chain,
+        address,
+        amount,
+        txid,
+        confirmations,
+        provider: 'tatum'
+      })
+    });
+    console.log(`Deposit to unmapped address: ${address} (${chain})`);
+  }
+
   // Check if PendingDeposit already exists (idempotency)
   const existingDeposits = await base44.asServiceRole.entities.PendingDeposit.filter({
     chain,
@@ -178,12 +199,8 @@ async function handleDepositConfirmed(base44, payload) {
     })
   });
 
-  // Credit balance only when fully confirmed
-  if (newStatus === 'confirmed') {
-    if (!pendingDeposit.worker_id) {
-      console.log(`No worker found for deposit ${txid}`);
-      return;
-    }
+  // Credit balance only when fully confirmed and worker is mapped
+  if (newStatus === 'confirmed' && pendingDeposit.worker_id) {
 
     const worker = await base44.asServiceRole.entities.Worker.get(pendingDeposit.worker_id);
 
@@ -236,6 +253,9 @@ async function handleDepositConfirmed(base44, payload) {
     });
 
     console.log(`Deposit credited to worker ${worker.id}: ${pendingDeposit.amount} ${chain} = $${pendingDeposit.amount_usd}`);
+  } else if (newStatus === 'confirmed' && !pendingDeposit.worker_id) {
+    // Deposit confirmed but not yet mapped to worker
+    console.log(`Deposit confirmed but unmapped: ${txid} (awaiting address assignment)`);
   } else {
     console.log(`Deposit confirming: ${txid} (${currentConf}/${requiredConf})`);
   }
