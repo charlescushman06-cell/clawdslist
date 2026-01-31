@@ -43,8 +43,8 @@ export default function Workers() {
   });
 
   const { data: workerAddresses = [] } = useQuery({
-    queryKey: ['worker-addresses'],
-    queryFn: () => base44.entities.WorkerAddress.list()
+    queryKey: ['worker-deposit-addresses'],
+    queryFn: () => base44.entities.WorkerDepositAddress.list()
   });
 
   const createMutation = useMutation({
@@ -272,6 +272,7 @@ export default function Workers() {
                         <div key={addr.id} className="flex items-center gap-2 p-1.5 bg-slate-900/50 rounded text-xs">
                           <span className="text-slate-500 w-8">{addr.chain}</span>
                           <code className="text-red-400 flex-1 truncate">{addr.address}</code>
+                          <span className="text-slate-600 text-[10px]">#{addr.derivation_index}</span>
                           <button onClick={() => { navigator.clipboard.writeText(addr.address); toast.success('Address copied'); }} className="text-slate-500 hover:text-slate-300">
                             <Copy className="w-3 h-3" />
                           </button>

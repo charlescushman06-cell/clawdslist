@@ -681,11 +681,12 @@ Deno.serve(async (req) => {
 
     // Get worker deposit addresses
     if (action === 'get_deposit_addresses') {
-      const addresses = await base44.asServiceRole.entities.WorkerAddress.filter({
-        worker_id: worker.id
+      const addresses = await base44.asServiceRole.entities.WorkerDepositAddress.filter({
+        worker_id: worker.id,
+        status: 'active'
       });
 
-      const result = { ETH: null, BTC: null };
+      const result = {};
       for (const addr of addresses) {
         result[addr.chain] = addr.address;
       }
@@ -693,17 +694,18 @@ Deno.serve(async (req) => {
       return successResponse(result);
     }
 
-    // Generate new deposit address
+    // Generate new deposit address (idempotent)
     if (action === 'generate_deposit_address') {
       const { chain } = body;
       if (!chain || !['ETH', 'BTC'].includes(chain)) {
         return errorResponse('INVALID_PAYLOAD', 'chain must be ETH or BTC');
       }
 
-      // Check if address already exists for this worker+chain
-      const existing = await base44.asServiceRole.entities.WorkerAddress.filter({
+      // Check if address already exists for this worker+chain (idempotent)
+      const existing = await base44.asServiceRole.entities.WorkerDepositAddress.filter({
         worker_id: worker.id,
-        chain
+        chain,
+        status: 'active'
       });
 
       if (existing.length > 0) {
@@ -715,46 +717,73 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Config
+      // Config check
       const TATUM_API_KEY = Deno.env.get('TATUM_API_KEY_MAINNET') || Deno.env.get('TATUM_API_KEY');
       const TATUM_TESTNET = Deno.env.get('TATUM_TESTNET') === 'true';
-      const MASTER_XPUB_ETH = Deno.env.get('MASTER_XPUB_ETH');
-      const MASTER_XPUB_BTC = Deno.env.get('MASTER_XPUB_BTC');
+      const DEPOSIT_MASTER_XPUB = chain === 'ETH' 
+        ? Deno.env.get('DEPOSIT_MASTER_XPUB_ETH') 
+        : Deno.env.get('DEPOSIT_MASTER_XPUB_BTC');
 
       if (!TATUM_API_KEY) {
         return errorResponse('INTERNAL_ERROR', 'TATUM_API_KEY_MAINNET not configured');
       }
 
-      const xpub = chain === 'ETH' ? MASTER_XPUB_ETH : MASTER_XPUB_BTC;
-      if (!xpub) {
-        return errorResponse('INTERNAL_ERROR', `MASTER_XPUB_${chain} not configured. Generate via admin walletUtils action.`);
+      if (!DEPOSIT_MASTER_XPUB) {
+        return errorResponse('INTERNAL_ERROR', `DEPOSIT_MASTER_XPUB_${chain} not configured. Initialize via Settings > Deposit Master Setup.`);
       }
 
-      // Atomic derivation index allocation via DerivationCounter
+      // Atomic derivation index allocation via DepositDerivationState
       let derivationIndex;
-      const counters = await base44.asServiceRole.entities.DerivationCounter.filter({ chain });
+      const MAX_RETRIES = 5;
       
-      if (counters.length === 0) {
-        // Initialize counter for this chain
-        await base44.asServiceRole.entities.DerivationCounter.create({
-          chain,
-          next_index: 1
-        });
-        derivationIndex = 0;
-      } else {
-        const counter = counters[0];
-        derivationIndex = counter.next_index;
-        await base44.asServiceRole.entities.DerivationCounter.update(counter.id, {
-          next_index: derivationIndex + 1
-        });
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        const states = await base44.asServiceRole.entities.DepositDerivationState.filter({ chain });
+        
+        let state;
+        if (states.length === 0) {
+          state = await base44.asServiceRole.entities.DepositDerivationState.create({
+            chain,
+            next_index: 0,
+            last_allocated_at: new Date().toISOString()
+          });
+        } else {
+          state = states[0];
+        }
+
+        const currentIndex = state.next_index;
+
+        try {
+          await base44.asServiceRole.entities.DepositDerivationState.update(state.id, {
+            next_index: currentIndex + 1,
+            last_allocated_at: new Date().toISOString()
+          });
+
+          // Verify update succeeded
+          const [updatedState] = await base44.asServiceRole.entities.DepositDerivationState.filter({ chain });
+          
+          if (updatedState.next_index === currentIndex + 1) {
+            derivationIndex = currentIndex;
+            break;
+          }
+
+          // Race condition, retry
+          await new Promise(r => setTimeout(r, Math.random() * 50 + 10));
+        } catch (err) {
+          if (attempt === MAX_RETRIES - 1) throw err;
+          await new Promise(r => setTimeout(r, Math.random() * 50 + 10));
+        }
       }
 
-      // Derive address from master xpub
+      if (derivationIndex === undefined) {
+        return errorResponse('INTERNAL_ERROR', 'Failed to allocate derivation index after retries');
+      }
+
+      // Derive address from deposit master xpub
       const tatumChain = chain === 'ETH' 
         ? (TATUM_TESTNET ? 'ethereum-sepolia' : 'ethereum')
         : (TATUM_TESTNET ? 'bitcoin-testnet' : 'bitcoin');
 
-      const tatumResponse = await fetch(`https://api.tatum.io/v3/${tatumChain}/address/${xpub}/${derivationIndex}`, {
+      const tatumResponse = await fetch(`https://api.tatum.io/v3/${tatumChain}/address/${DEPOSIT_MASTER_XPUB}/${derivationIndex}`, {
         method: 'GET',
         headers: {
           'x-api-key': TATUM_API_KEY
@@ -769,12 +798,13 @@ Deno.serve(async (req) => {
       const tatumData = await tatumResponse.json();
       const generatedAddress = tatumData.address;
 
-      // Store WorkerAddress
-      await base44.asServiceRole.entities.WorkerAddress.create({
+      // Store WorkerDepositAddress
+      await base44.asServiceRole.entities.WorkerDepositAddress.create({
         worker_id: worker.id,
         chain,
         address: generatedAddress,
-        derivation_index: derivationIndex
+        derivation_index: derivationIndex,
+        status: 'active'
       });
 
       // Register in TrackedAddress for webhook processing
