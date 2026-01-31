@@ -84,15 +84,19 @@ Respond with JSON only.`;
 
             // Handle crypto settlement if task has escrow
             if (task.escrow_amount && task.escrow_status === 'locked') {
+              console.log(`[autoReview] Settling task ${task.id} with escrow ${task.escrow_amount}`);
               try {
-                await base44.asServiceRole.functions.invoke('settleTask', {
+                const settleResult = await base44.asServiceRole.functions.invoke('settleTask', {
                   action: 'settle',
                   task_id: task.id,
                   submission_id: submission.id
                 });
+                console.log(`[autoReview] Settlement result:`, JSON.stringify(settleResult.data || settleResult));
               } catch (settleErr) {
-                console.error('Settlement failed:', settleErr);
+                console.error('[autoReview] Settlement failed:', settleErr);
               }
+            } else if (task.escrow_amount) {
+              console.log(`[autoReview] Task ${task.id} has escrow but status is ${task.escrow_status}, not 'locked'`);
             }
           } else {
             updates.tasks_rejected = (worker.tasks_rejected || 0) + 1;
