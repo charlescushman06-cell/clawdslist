@@ -1,17 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-// TODO: Implement HMAC signature verification after basic connectivity confirmed
-// Uncomment and set TATUM_WEBHOOK_SECRET env var to enable
-// async function verifyTatumSignature(req, bodyText) {
-//   const signature = req.headers.get('x-payload-hash');
-//   const secret = Deno.env.get('TATUM_WEBHOOK_SECRET');
-//   if (!secret || !signature) return false;
-//   const encoder = new TextEncoder();
-//   const key = await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-512' }, false, ['sign']);
-//   const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(bodyText));
-//   const computed = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
-//   return computed === signature;
-// }
+// TODO: Add HMAC signature verification after basic connectivity confirmed
+// See Tatum docs for x-payload-hash header verification
 
 Deno.serve(async (req) => {
   // Only allow POST
