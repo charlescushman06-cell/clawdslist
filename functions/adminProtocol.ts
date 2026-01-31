@@ -1,5 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
+const TATUM_API_KEY = Deno.env.get('TATUM_API_KEY');
+const TATUM_TESTNET = Deno.env.get('TATUM_TESTNET') === 'true';
+
 // Decimal-safe math
 const SCALE = BigInt(10 ** 18);
 
@@ -255,13 +258,140 @@ Deno.serve(async (req) => {
         })
       });
 
+      // Broadcast to Tatum
+      let txHash = null;
+      let broadcastError = null;
+
+      try {
+        const tatumChain = chain === 'ETH' 
+          ? (TATUM_TESTNET ? 'ethereum-sepolia' : 'ethereum-mainnet')
+          : (TATUM_TESTNET ? 'bitcoin-testnet' : 'bitcoin-mainnet');
+
+        // Get protocol custody wallet for this chain
+        const wallets = await base44.asServiceRole.entities.Worker.filter({});
+        // Protocol uses a dedicated source - for now we'll use a configured address
+        // In production, this would come from Tatum's managed wallets
+        
+        const tatumResponse = await fetch(`https://api.tatum.io/v3/${chain.toLowerCase()}/transaction`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': TATUM_API_KEY
+          },
+          body: JSON.stringify({
+            to: destination_address,
+            amount: amount,
+            currency: chain
+          })
+        });
+
+        if (!tatumResponse.ok) {
+          const errData = await tatumResponse.json();
+          throw new Error(errData.message || `Tatum API error: ${tatumResponse.status}`);
+        }
+
+        const tatumData = await tatumResponse.json();
+        txHash = tatumData.txId || tatumData.txHash || tatumData.id;
+
+        // Update sweep to broadcasted
+        await base44.asServiceRole.entities.Sweep.update(sweep.id, {
+          status: 'broadcasted',
+          tx_hash: txHash
+        });
+
+        // Emit broadcasted event
+        await base44.asServiceRole.entities.Event.create({
+          event_type: 'funds_transferred',
+          entity_type: 'transaction',
+          entity_id: sweep.id,
+          actor_type: 'system',
+          actor_id: 'tatum',
+          details: JSON.stringify({
+            stage: 'protocol_fee_sweep_broadcasted',
+            chain,
+            amount,
+            destination_address,
+            sweep_id: sweep.id,
+            tx_hash: txHash
+          })
+        });
+
+      } catch (err) {
+        broadcastError = err.message;
+
+        // Rollback: return locked funds to available
+        const rollbackAvailable = addDecimal(newAvailable, amount);
+        const rollbackLocked = subtractDecimal(newLocked, amount);
+
+        await base44.asServiceRole.entities.LedgerAccount.update(protocolAccount.id, {
+          available_balance: rollbackAvailable,
+          locked_balance: rollbackLocked
+        });
+
+        // Update sweep to failed
+        await base44.asServiceRole.entities.Sweep.update(sweep.id, {
+          status: 'failed',
+          failure_reason: broadcastError
+        });
+
+        // Create unlock ledger entry
+        await base44.asServiceRole.entities.LedgerEntry.create({
+          chain,
+          amount,
+          entry_type: 'unlock',
+          from_owner_type: 'protocol',
+          from_owner_id: null,
+          to_owner_type: 'protocol',
+          to_owner_id: null,
+          metadata: JSON.stringify({
+            sweep_id: sweep.id,
+            action: 'protocol_fee_sweep_failed_rollback',
+            reason: broadcastError
+          })
+        });
+
+        // Emit failed event
+        await base44.asServiceRole.entities.Event.create({
+          event_type: 'system_error',
+          entity_type: 'transaction',
+          entity_id: sweep.id,
+          actor_type: 'system',
+          actor_id: 'tatum',
+          details: JSON.stringify({
+            stage: 'protocol_fee_sweep_failed',
+            chain,
+            amount,
+            destination_address,
+            sweep_id: sweep.id,
+            error: broadcastError,
+            rollback_available: rollbackAvailable,
+            rollback_locked: rollbackLocked
+          })
+        });
+
+        return Response.json({
+          success: false,
+          sweep_id: sweep.id,
+          chain,
+          amount,
+          destination_address,
+          status: 'failed',
+          error: broadcastError,
+          protocol_balance: {
+            available: rollbackAvailable,
+            locked: rollbackLocked
+          }
+        }, { status: 500 });
+      }
+
       return Response.json({
         success: true,
         sweep_id: sweep.id,
         chain,
         amount,
         destination_address,
-        status: 'requested',
+        status: 'broadcasted',
+        tx_hash: txHash,
         protocol_balance: {
           available: newAvailable,
           locked: newLocked
