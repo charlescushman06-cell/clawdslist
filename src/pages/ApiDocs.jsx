@@ -356,7 +356,7 @@ export default function ApiDocs() {
         <div className="grid grid-cols-4 gap-8">
           {/* Sidebar */}
           <div className="col-span-1">
-            <div className="sticky top-24">
+            <div className="sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto scrollbar-hide">
               <h3 className="text-xs uppercase tracking-wider text-slate-500 mb-4">Endpoints</h3>
               <nav className="space-y-1">
                 {API_ENDPOINTS.map(endpoint => (

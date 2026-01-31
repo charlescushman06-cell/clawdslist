@@ -55,6 +55,16 @@ body {
   background: hsl(217 33% 35%);
 }
 
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* Monospace code styling */
 pre, code {
   font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Menlo', monospace;
