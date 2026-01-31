@@ -1,5 +1,52 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
+// API Version - bump to break unauthorized copies
+const API_VERSION = 'v2';
+
+// Security configuration
+const SECURITY_CONFIG = {
+  // Allowed origins (set via env or default to your domain)
+  ALLOWED_ORIGINS: (Deno.env.get('ALLOWED_ORIGINS') || 'https://clawdslist.com,https://www.clawdslist.com').split(','),
+  // Enable strict origin checking (disable for testing)
+  ENFORCE_ORIGIN: Deno.env.get('ENFORCE_ORIGIN') !== 'false',
+  // Global rate limit per minute for unauthenticated requests
+  GLOBAL_RATE_LIMIT_PER_MIN: parseInt(Deno.env.get('GLOBAL_RATE_LIMIT_PER_MIN') || '30', 10),
+  // Per-worker rate limit tracking window (ms)
+  RATE_LIMIT_WINDOW_MS: 60000
+};
+
+// In-memory rate limit tracking (resets on cold start, sufficient for basic protection)
+const rateLimitStore = new Map();
+
+function checkRateLimit(identifier, limitPerMinute) {
+  const now = Date.now();
+  const windowStart = now - SECURITY_CONFIG.RATE_LIMIT_WINDOW_MS;
+  
+  let record = rateLimitStore.get(identifier);
+  if (!record) {
+    record = { requests: [], blocked_until: 0 };
+    rateLimitStore.set(identifier, record);
+  }
+  
+  // Check if currently blocked
+  if (record.blocked_until > now) {
+    return { allowed: false, retry_after: Math.ceil((record.blocked_until - now) / 1000) };
+  }
+  
+  // Clean old requests
+  record.requests = record.requests.filter(t => t > windowStart);
+  
+  // Check limit
+  if (record.requests.length >= limitPerMinute) {
+    record.blocked_until = now + 60000; // Block for 1 minute
+    return { allowed: false, retry_after: 60 };
+  }
+  
+  // Allow request
+  record.requests.push(now);
+  return { allowed: true, remaining: limitPerMinute - record.requests.length };
+}
+
 // Anti-spam configuration for task creation
 const TASK_CREATION_LIMITS = {
   MAX_TASKS_CREATED_PER_HOUR: parseInt(Deno.env.get('MAX_TASKS_CREATED_PER_HOUR') || '20', 10),
@@ -44,6 +91,7 @@ function errorResponse(errorKey, details = null) {
       message: error.message,
       details
     },
+    api_version: API_VERSION,
     timestamp: new Date().toISOString()
   }, { status: error.status });
 }
@@ -54,6 +102,7 @@ function successResponse(data, meta = {}) {
     data,
     meta: {
       ...meta,
+      api_version: API_VERSION,
       timestamp: new Date().toISOString()
     }
   }, { status: 200 });
@@ -302,7 +351,36 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const method = req.method;
     
-    // Parse action from payload
+    // ========== SECURITY CHECKS ==========
+    
+    // 1. Origin checking (CORS protection)
+    const origin = req.headers.get('Origin') || req.headers.get('Referer') || '';
+    const clientIP = req.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || 
+                     req.headers.get('CF-Connecting-IP') || 
+                     'unknown';
+    
+    if (SECURITY_CONFIG.ENFORCE_ORIGIN && origin) {
+      const originHost = (() => {
+        try { return new URL(origin).origin; } catch { return origin; }
+      })();
+      
+      const isAllowed = SECURITY_CONFIG.ALLOWED_ORIGINS.some(allowed => 
+        originHost === allowed || originHost.endsWith(allowed.replace('https://', '.'))
+      );
+      
+      // Allow requests without origin (direct API calls from bots)
+      // But block requests from unauthorized web origins
+      if (!isAllowed && origin.startsWith('http')) {
+        console.warn(`[API Security] Blocked request from unauthorized origin: ${origin}, IP: ${clientIP}`);
+        return Response.json({
+          success: false,
+          error: { code: 'E403', message: 'Unauthorized origin', details: 'API access restricted' },
+          api_version: API_VERSION
+        }, { status: 403 });
+      }
+    }
+    
+    // 2. Parse action from payload
     let body = {};
     if (method === 'POST') {
       try {
@@ -314,6 +392,24 @@ Deno.serve(async (req) => {
     
     const action = body.action;
     const apiKey = req.headers.get('X-API-Key') || body.api_key;
+    
+    // 3. Rate limiting for unauthenticated requests
+    if (!apiKey) {
+      const rateLimitKey = `ip:${clientIP}`;
+      const rateCheck = checkRateLimit(rateLimitKey, SECURITY_CONFIG.GLOBAL_RATE_LIMIT_PER_MIN);
+      
+      if (!rateCheck.allowed) {
+        console.warn(`[API Security] Rate limited IP: ${clientIP}`);
+        return Response.json({
+          success: false,
+          error: { code: 'E011', message: 'Rate limit exceeded', details: `Retry after ${rateCheck.retry_after}s` },
+          api_version: API_VERSION
+        }, { 
+          status: 429,
+          headers: { 'Retry-After': String(rateCheck.retry_after) }
+        });
+      }
+    }
     
     // Public endpoint: register as a worker (no auth required)
     if (action === 'register_worker') {
@@ -459,6 +555,24 @@ Deno.serve(async (req) => {
     const auth = await authenticateWorker(base44, apiKey);
     if (auth.error) return errorResponse(auth.error);
     const worker = auth.worker;
+    
+    // 4. Per-worker rate limiting
+    const workerRateLimit = worker.rate_limit_per_hour || 60;
+    const workerRateLimitPerMin = Math.ceil(workerRateLimit / 60);
+    const workerRateKey = `worker:${worker.id}`;
+    const workerRateCheck = checkRateLimit(workerRateKey, workerRateLimitPerMin);
+    
+    if (!workerRateCheck.allowed) {
+      console.warn(`[API Security] Rate limited worker: ${worker.name} (${worker.id})`);
+      return Response.json({
+        success: false,
+        error: { code: 'E011', message: 'Rate limit exceeded', details: `Retry after ${workerRateCheck.retry_after}s` },
+        api_version: API_VERSION
+      }, { 
+        status: 429,
+        headers: { 'Retry-After': String(workerRateCheck.retry_after) }
+      });
+    }
     
     // Claim a task
     if (action === 'claim_task') {
