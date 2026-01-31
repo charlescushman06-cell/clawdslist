@@ -816,7 +816,17 @@ Deno.serve(async (req) => {
         purpose: 'deposit'
       });
 
-      // Log event
+      // Emit tracked_address_registered event
+      await logEvent(base44, 'tracked_address_registered', 'deposit', generatedAddress, 'worker', worker.id, {
+        chain,
+        address: generatedAddress,
+        owner_type: 'worker',
+        owner_id: worker.id,
+        purpose: 'deposit',
+        derivation_index: derivationIndex
+      });
+
+      // Log worker deposit address created event
       await logEvent(base44, 'worker_deposit_address_created', 'worker', worker.id, 'worker', worker.id, {
         chain,
         address: generatedAddress,
