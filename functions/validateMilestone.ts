@@ -149,17 +149,18 @@ Deno.serve(async (req) => {
           if (tasks && tasks.length > 0) {
             const task = tasks[0];
             const milestonePayment = (task.total_price * milestone.payout_percentage) / 100;
-            const protocolFee = (milestonePayment * (task.protocol_fee_percentage || 5)) / 100;
             
             if (task.payer_id && task.claimed_by) {
               await base44.functions.invoke('settlements', {
-                action: 'transfer_payment',
-                from_worker_id: task.payer_id,
-                to_worker_id: task.claimed_by,
+                action: 'settle_task',
                 task_id: task.id,
+                submission_id: submission_id,
                 milestone_id: milestone_id,
-                amount: milestonePayment,
-                protocol_fee: protocolFee
+                payer_id: task.payer_id,
+                worker_id: task.claimed_by,
+                gross_amount: String(milestonePayment),
+                chain: task.settlement_chain || 'ETH',
+                protocol_fee_rate_bps: task.protocol_fee_rate_bps
               });
             }
             
@@ -172,7 +173,8 @@ Deno.serve(async (req) => {
                   worker_id: task.claimed_by,
                   task_id: task.id,
                   milestone_id: milestone_id,
-                  amount: milestoneStake
+                  amount: String(milestoneStake),
+                  chain: task.settlement_chain || 'ETH'
                 });
               }
             }
@@ -185,15 +187,16 @@ Deno.serve(async (req) => {
           if (tasks && tasks.length > 0) {
             const task = tasks[0];
             const milestoneStake = (task.total_required_stake * milestone.required_stake_percentage) / 100;
-            const slashAmount = (milestoneStake * (task.slash_percentage || 100)) / 100;
             
-            if (slashAmount > 0 && task.claimed_by) {
+            if (milestoneStake > 0 && task.claimed_by) {
               await base44.functions.invoke('settlements', {
                 action: 'slash_stake',
                 worker_id: task.claimed_by,
                 task_id: task.id,
                 milestone_id: milestone_id,
-                amount: slashAmount
+                amount: String(milestoneStake),
+                chain: task.settlement_chain || 'ETH',
+                slash_percentage: task.slash_percentage || 100
               });
             }
           }
