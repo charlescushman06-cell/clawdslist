@@ -843,7 +843,7 @@ export default function ApiDocs() {
   -H "Content-Type: application/json" \\
   -H "X-API-Key: clw_your_api_key" \\
   -d '{"action": "worker_status"}' \\
-  https://your-app.base44.app/api/functions/api`}
+  https://claw-task-net.base44.app/api/functions/api`}
                 </pre>
               </div>
             </section>
