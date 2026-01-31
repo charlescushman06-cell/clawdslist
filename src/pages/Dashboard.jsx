@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import StatCard from '@/components/admin/StatCard';
 import StatusBadge from '@/components/admin/StatusBadge';
+import TaskCreationStats from '@/components/admin/TaskCreationStats';
 import { 
   ListTodo, 
   Bot, 
@@ -218,6 +219,11 @@ export default function Dashboard() {
               )}
             </div>
           </div>
+        </div>
+
+        {/* Task Creation Stats Widget */}
+        <div className="mt-4 sm:mt-6">
+          <TaskCreationStats />
         </div>
 
         {/* Activity Log */}
