@@ -433,6 +433,94 @@ Deno.serve(async (req) => {
       return Response.json({ sweep: sweeps[0] });
     }
 
+    /**
+     * TREASURY ADDRESS MANAGEMENT
+     * 
+     * Treasury addresses are stored in ProtocolConfig entity with config_key='treasury_addresses'.
+     * 
+     * To set/update treasury addresses:
+     * 1. Call action='set_treasury_addresses' with eth_treasury_address (required) and btc_treasury_address (optional)
+     * 2. Or manually create/update ProtocolConfig record with config_key='treasury_addresses'
+     * 
+     * These addresses are used as destinations for protocol fee sweeps.
+     * Do NOT auto-generate or infer from workers/Tatum - must be explicitly set by admin.
+     */
+
+    // GET treasury addresses
+    if (action === 'get_treasury_addresses') {
+      const configs = await base44.asServiceRole.entities.ProtocolConfig.filter({
+        config_key: 'treasury_addresses'
+      });
+
+      if (configs.length === 0) {
+        return Response.json({
+          eth_treasury_address: null,
+          btc_treasury_address: null,
+          configured: false
+        });
+      }
+
+      const config = configs[0];
+      return Response.json({
+        eth_treasury_address: config.eth_treasury_address || null,
+        btc_treasury_address: config.btc_treasury_address || null,
+        configured: true,
+        updated_at: config.updated_date
+      });
+    }
+
+    // SET treasury addresses
+    if (action === 'set_treasury_addresses') {
+      const { eth_treasury_address, btc_treasury_address, notes } = body;
+
+      if (!eth_treasury_address) {
+        return Response.json({ error: 'eth_treasury_address is required' }, { status: 400 });
+      }
+
+      // Find existing config
+      const configs = await base44.asServiceRole.entities.ProtocolConfig.filter({
+        config_key: 'treasury_addresses'
+      });
+
+      let config;
+      if (configs.length > 0) {
+        // Update existing
+        config = await base44.asServiceRole.entities.ProtocolConfig.update(configs[0].id, {
+          eth_treasury_address,
+          btc_treasury_address: btc_treasury_address || null,
+          notes: notes || configs[0].notes
+        });
+      } else {
+        // Create new
+        config = await base44.asServiceRole.entities.ProtocolConfig.create({
+          config_key: 'treasury_addresses',
+          eth_treasury_address,
+          btc_treasury_address: btc_treasury_address || null,
+          notes: notes || 'Protocol treasury addresses'
+        });
+      }
+
+      // Log event
+      await base44.asServiceRole.entities.Event.create({
+        event_type: 'system_error', // Using as generic system event
+        entity_type: 'system',
+        entity_id: config.id,
+        actor_type: 'admin',
+        actor_id: user.id,
+        details: JSON.stringify({
+          action: 'treasury_addresses_updated',
+          eth_treasury_address,
+          btc_treasury_address: btc_treasury_address || null
+        })
+      });
+
+      return Response.json({
+        success: true,
+        eth_treasury_address,
+        btc_treasury_address: btc_treasury_address || null
+      });
+    }
+
     return Response.json({ error: 'Unknown action' }, { status: 400 });
   } catch (error) {
     console.error('Admin protocol error:', error);
