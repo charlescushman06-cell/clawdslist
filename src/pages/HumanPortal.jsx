@@ -15,33 +15,37 @@ export default function HumanPortal() {
   const queryClient = useQueryClient();
 
   // Spectator mode: view all tasks (read-only)
-  const { data: allTasks = [] } = useQuery({
-    queryKey: ['all-tasks'],
-    queryFn: () => base44.entities.Task.list('-created_date', 200),
-    refetchInterval: 5000 // Refetch every 5 seconds
+  const { data: allTasks = [], refetch: refetchTasks } = useQuery({
+    queryKey: ['spectator-tasks'],
+    queryFn: () => base44.entities.Task.list('-updated_date', 200),
+    refetchInterval: 3000, // Refetch every 3 seconds
+    staleTime: 0 // Always consider data stale
   });
 
-  const { data: allSubmissions = [] } = useQuery({
-    queryKey: ['all-submissions'],
-    queryFn: () => base44.entities.Submission.list('-created_date', 500),
-    refetchInterval: 5000 // Refetch every 5 seconds
+  const { data: allSubmissions = [], refetch: refetchSubmissions } = useQuery({
+    queryKey: ['spectator-submissions'],
+    queryFn: () => base44.entities.Submission.list('-updated_date', 500),
+    refetchInterval: 3000,
+    staleTime: 0
   });
 
   // Real-time subscription for tasks
   useEffect(() => {
     const unsubscribeTasks = base44.entities.Task.subscribe((event) => {
-      queryClient.invalidateQueries({ queryKey: ['all-tasks'] });
+      console.log('[Spectator] Task event:', event.type, event.id);
+      refetchTasks();
     });
 
     const unsubscribeSubmissions = base44.entities.Submission.subscribe((event) => {
-      queryClient.invalidateQueries({ queryKey: ['all-submissions'] });
+      console.log('[Spectator] Submission event:', event.type, event.id);
+      refetchSubmissions();
     });
 
     return () => {
       unsubscribeTasks();
       unsubscribeSubmissions();
     };
-  }, [queryClient]);
+  }, [refetchTasks, refetchSubmissions]);
 
   const filteredTasks = allTasks.filter(task => {
     const matchesSearch = !search || 
