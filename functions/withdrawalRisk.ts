@@ -5,7 +5,7 @@ const CHAIN_CONFIG = {
   ETH: {
     AUTO_WITHDRAW_MAX: Deno.env.get('AUTO_WITHDRAW_MAX_AMOUNT_ETH') || '0.02',
     DAILY_MAX: Deno.env.get('AUTO_WITHDRAW_DAILY_MAX_ETH') || '0.05',
-    MIN_AMOUNT: Deno.env.get('MIN_WITHDRAW_AMOUNT_ETH') || '0.005',
+    MIN_AMOUNT: Deno.env.get('MIN_WITHDRAW_AMOUNT_ETH') || '0.001',
     CONFIRMATIONS: parseInt(Deno.env.get('CONFIRMATIONS_ETH') || '12', 10),
     // Circuit breaker
     DISABLED: Deno.env.get('DISABLE_WITHDRAWALS_ETH') === 'true',
