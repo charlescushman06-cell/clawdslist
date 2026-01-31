@@ -56,12 +56,19 @@ async function logEvent(base44, eventType, entityType, entityId, actorType, acto
 }
 
 async function getOrCreateLedgerAccount(base44, ownerType, ownerId, chain) {
+  // Build filter - for workers, we MUST include owner_id to get the right account
   const filter = { owner_type: ownerType, chain };
-  if (ownerId) filter.owner_id = ownerId;
+  if (ownerType === 'worker' && ownerId) {
+    filter.owner_id = ownerId;
+  } else if (ownerType === 'protocol') {
+    // Protocol accounts don't have owner_id
+  }
   
   const accounts = await base44.asServiceRole.entities.LedgerAccount.filter(filter);
   if (accounts.length > 0) return accounts[0];
   
+  // Create new account if doesn't exist
+  console.log(`[settleTask] Creating new LedgerAccount: ownerType=${ownerType}, ownerId=${ownerId}, chain=${chain}`);
   return await base44.asServiceRole.entities.LedgerAccount.create({
     owner_type: ownerType,
     owner_id: ownerId || null,
@@ -73,26 +80,33 @@ async function getOrCreateLedgerAccount(base44, ownerType, ownerId, chain) {
 
 // Settle a completed task: pay worker from escrow, take protocol fee
 async function settleTask(base44, taskId, submissionId = null) {
+  console.log(`[settleTask] Starting settlement for task ${taskId}`);
+  
   // Get task
   const tasks = await base44.asServiceRole.entities.Task.filter({ id: taskId });
   if (!tasks || tasks.length === 0) {
+    console.log(`[settleTask] Task not found: ${taskId}`);
     return { error: 'Task not found' };
   }
   
   const task = tasks[0];
+  console.log(`[settleTask] Task found: status=${task.status}, escrow_status=${task.escrow_status}, escrow_amount=${task.escrow_amount}, claimed_by=${task.claimed_by}`);
   
   // Idempotency: check if already settled
   if (task.escrow_status === 'released') {
+    console.log(`[settleTask] Already settled: ${taskId}`);
     return { already_settled: true, task_id: taskId };
   }
   
   // Must have escrow to settle
   if (!task.escrow_amount || task.escrow_status !== 'locked') {
+    console.log(`[settleTask] No escrow to settle: escrow_amount=${task.escrow_amount}, escrow_status=${task.escrow_status}`);
     return { error: 'No escrow to settle', escrow_status: task.escrow_status };
   }
   
   // Must have a solver (claimed_by)
   if (!task.claimed_by) {
+    console.log(`[settleTask] No claimed_by worker for task ${taskId}`);
     return { error: 'Task has no assigned worker' };
   }
   
@@ -120,16 +134,26 @@ async function settleTask(base44, taskId, submissionId = null) {
   }
   
   // 1. Decrement creator's locked_balance (escrow consumed)
+  console.log(`[settleTask] Getting/creating creator account: creatorId=${creatorId}, chain=${chain}`);
   const creatorAccount = await getOrCreateLedgerAccount(base44, 'worker', creatorId, chain);
+  console.log(`[settleTask] Creator account: id=${creatorAccount.id}, locked_balance=${creatorAccount.locked_balance}`);
+  
+  const newCreatorLocked = subtractDecimal(creatorAccount.locked_balance || '0', escrowAmount);
   await base44.asServiceRole.entities.LedgerAccount.update(creatorAccount.id, {
-    locked_balance: subtractDecimal(creatorAccount.locked_balance || '0', escrowAmount)
+    locked_balance: newCreatorLocked
   });
+  console.log(`[settleTask] Updated creator locked_balance: ${creatorAccount.locked_balance} -> ${newCreatorLocked}`);
   
   // 2. Increment solver's available_balance
+  console.log(`[settleTask] Getting/creating solver account: solverId=${solverId}, chain=${chain}`);
   const solverAccount = await getOrCreateLedgerAccount(base44, 'worker', solverId, chain);
+  console.log(`[settleTask] Solver account: id=${solverAccount.id}, available_balance=${solverAccount.available_balance}`);
+  
+  const newSolverAvailable = addDecimal(solverAccount.available_balance || '0', payoutAmount);
   await base44.asServiceRole.entities.LedgerAccount.update(solverAccount.id, {
-    available_balance: addDecimal(solverAccount.available_balance || '0', payoutAmount)
+    available_balance: newSolverAvailable
   });
+  console.log(`[settleTask] Updated solver available_balance: ${solverAccount.available_balance} -> ${newSolverAvailable} (payout: ${payoutAmount})`);
   
   // 3. Increment protocol fee balance
   if (toScaled(feeAmount) > 0n) {
