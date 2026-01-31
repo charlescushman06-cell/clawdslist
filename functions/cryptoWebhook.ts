@@ -20,25 +20,58 @@ function verifyTatumSignature(payload, signature) {
 }
 
 async function handleDepositDetected(base44, payload) {
-  const { address, chain, amount, txid, confirmations } = payload;
+  const { address, chain, amount, txid, confirmations = 0 } = payload;
+
+  // Define confirmation requirements
+  const REQUIRED_CONFIRMATIONS = {
+    'ETH': 12,
+    'BTC': 3
+  };
+
+  const requiredConf = REQUIRED_CONFIRMATIONS[chain] || 12;
 
   // Find worker by address
   const workers = await base44.asServiceRole.entities.Worker.filter({
     [chain === 'ETH' ? 'eth_address' : 'btc_address']: address
   });
 
-  if (workers.length === 0) {
-    console.log(`No worker found for address ${address}`);
+  const workerId = workers.length > 0 ? workers[0].id : null;
+
+  // Check if PendingDeposit already exists (idempotency)
+  const existingDeposits = await base44.asServiceRole.entities.PendingDeposit.filter({
+    chain,
+    txid,
+    address
+  });
+
+  if (existingDeposits.length > 0) {
+    console.log(`Deposit already tracked: ${txid}`);
     return;
   }
 
-  const worker = workers[0];
+  // Convert crypto to USD (simplified - use real exchange rate in production)
+  const exchangeRates = { 'ETH': 3000, 'BTC': 45000 };
+  const amountUSD = parseFloat(amount) * exchangeRates[chain];
 
-  // Log deposit detected event
+  // Create PendingDeposit
+  await base44.asServiceRole.entities.PendingDeposit.create({
+    worker_id: workerId,
+    chain,
+    address,
+    txid,
+    amount,
+    amount_usd: amountUSD,
+    confirmations,
+    required_confirmations: requiredConf,
+    status: 'detected',
+    raw_provider_payload: JSON.stringify(payload)
+  });
+
+  // Log event
   await base44.asServiceRole.entities.Event.create({
     event_type: 'funds_deposited',
     entity_type: 'worker',
-    entity_id: worker.id,
+    entity_id: workerId || 'unknown',
     actor_type: 'system',
     actor_id: 'crypto_provider',
     details: JSON.stringify({
@@ -46,79 +79,166 @@ async function handleDepositDetected(base44, payload) {
       chain,
       address,
       amount,
+      amount_usd: amountUSD,
       txid,
       confirmations,
+      required_confirmations: requiredConf,
       provider: 'tatum'
     })
   });
 
-  console.log(`Deposit detected for worker ${worker.id}: ${amount} ${chain}`);
+  console.log(`Deposit detected: ${amount} ${chain} (${confirmations}/${requiredConf} confirmations)`);
 }
 
 async function handleDepositConfirmed(base44, payload) {
-  const { address, chain, amount, txid } = payload;
+  const { address, chain, amount, txid, confirmations } = payload;
 
-  // Find worker by address
-  const workers = await base44.asServiceRole.entities.Worker.filter({
-    [chain === 'ETH' ? 'eth_address' : 'btc_address']: address
+  // Define confirmation requirements
+  const REQUIRED_CONFIRMATIONS = {
+    'ETH': 12,
+    'BTC': 3
+  };
+
+  const requiredConf = REQUIRED_CONFIRMATIONS[chain] || 12;
+
+  // Find pending deposit (idempotency check)
+  const pendingDeposits = await base44.asServiceRole.entities.PendingDeposit.filter({
+    chain,
+    txid,
+    address
   });
 
-  if (workers.length === 0) {
-    console.log(`No worker found for address ${address}`);
+  let pendingDeposit;
+
+  if (pendingDeposits.length === 0) {
+    // Create if doesn't exist (webhook might have been missed)
+    const workers = await base44.asServiceRole.entities.Worker.filter({
+      [chain === 'ETH' ? 'eth_address' : 'btc_address']: address
+    });
+
+    const workerId = workers.length > 0 ? workers[0].id : null;
+
+    const exchangeRates = { 'ETH': 3000, 'BTC': 45000 };
+    const amountUSD = parseFloat(amount) * exchangeRates[chain];
+
+    pendingDeposit = await base44.asServiceRole.entities.PendingDeposit.create({
+      worker_id: workerId,
+      chain,
+      address,
+      txid,
+      amount,
+      amount_usd: amountUSD,
+      confirmations: confirmations || 0,
+      required_confirmations: requiredConf,
+      status: 'detected',
+      raw_provider_payload: JSON.stringify(payload)
+    });
+  } else {
+    pendingDeposit = pendingDeposits[0];
+  }
+
+  // Check if already credited (idempotency)
+  if (pendingDeposit.status === 'credited') {
+    console.log(`Deposit already credited: ${txid}`);
     return;
   }
 
-  const worker = workers[0];
+  // Update confirmations
+  const currentConf = confirmations || pendingDeposit.confirmations;
+  let newStatus = pendingDeposit.status;
 
-  // Convert crypto amount to USD (simplified - would use real exchange rate API)
-  const exchangeRates = {
-    'ETH': 3000,
-    'BTC': 45000
-  };
-  const amountUSD = parseFloat(amount) * exchangeRates[chain];
+  if (currentConf < requiredConf) {
+    newStatus = 'confirming';
+  } else if (currentConf >= requiredConf) {
+    newStatus = 'confirmed';
+  }
 
-  // Update worker balance
-  await base44.asServiceRole.entities.Worker.update(worker.id, {
-    available_balance_usd: (worker.available_balance_usd || 0) + amountUSD,
-    total_deposited_usd: (worker.total_deposited_usd || 0) + amountUSD
+  await base44.asServiceRole.entities.PendingDeposit.update(pendingDeposit.id, {
+    confirmations: currentConf,
+    status: newStatus,
+    raw_provider_payload: JSON.stringify(payload)
   });
 
-  // Create transaction record
-  await base44.asServiceRole.entities.Transaction.create({
-    transaction_type: 'deposit',
-    worker_id: worker.id,
-    amount_usd: amountUSD,
-    balance_type: 'available',
-    status: 'completed',
-    metadata: JSON.stringify({
-      chain,
-      crypto_amount: amount,
-      txid,
-      address,
-      provider: 'tatum'
-    }),
-    notes: `${chain} deposit confirmed`
-  });
-
-  // Log event
+  // Log confirmation progress
   await base44.asServiceRole.entities.Event.create({
     event_type: 'funds_deposited',
     entity_type: 'worker',
-    entity_id: worker.id,
+    entity_id: pendingDeposit.worker_id || 'unknown',
     actor_type: 'system',
     actor_id: 'crypto_provider',
     details: JSON.stringify({
-      stage: 'confirmed',
+      stage: newStatus,
       chain,
       address,
       amount,
-      amount_usd: amountUSD,
       txid,
+      confirmations: currentConf,
+      required_confirmations: requiredConf,
       provider: 'tatum'
     })
   });
 
-  console.log(`Deposit confirmed for worker ${worker.id}: ${amount} ${chain} = $${amountUSD}`);
+  // Credit balance only when fully confirmed
+  if (newStatus === 'confirmed') {
+    if (!pendingDeposit.worker_id) {
+      console.log(`No worker found for deposit ${txid}`);
+      return;
+    }
+
+    const worker = await base44.asServiceRole.entities.Worker.get(pendingDeposit.worker_id);
+
+    // Credit worker balance
+    await base44.asServiceRole.entities.Worker.update(worker.id, {
+      available_balance_usd: (worker.available_balance_usd || 0) + pendingDeposit.amount_usd,
+      total_deposited_usd: (worker.total_deposited_usd || 0) + pendingDeposit.amount_usd
+    });
+
+    // Create transaction record
+    await base44.asServiceRole.entities.Transaction.create({
+      transaction_type: 'deposit',
+      worker_id: worker.id,
+      amount_usd: pendingDeposit.amount_usd,
+      balance_type: 'available',
+      status: 'completed',
+      metadata: JSON.stringify({
+        chain,
+        crypto_amount: pendingDeposit.amount,
+        txid,
+        address,
+        confirmations: currentConf,
+        provider: 'tatum'
+      }),
+      notes: `${chain} deposit credited (${currentConf} confirmations)`
+    });
+
+    // Mark as credited
+    await base44.asServiceRole.entities.PendingDeposit.update(pendingDeposit.id, {
+      status: 'credited'
+    });
+
+    // Log credit event
+    await base44.asServiceRole.entities.Event.create({
+      event_type: 'funds_deposited',
+      entity_type: 'worker',
+      entity_id: worker.id,
+      actor_type: 'system',
+      actor_id: 'crypto_provider',
+      details: JSON.stringify({
+        stage: 'credited',
+        chain,
+        address,
+        amount: pendingDeposit.amount,
+        amount_usd: pendingDeposit.amount_usd,
+        txid,
+        confirmations: currentConf,
+        provider: 'tatum'
+      })
+    });
+
+    console.log(`Deposit credited to worker ${worker.id}: ${pendingDeposit.amount} ${chain} = $${pendingDeposit.amount_usd}`);
+  } else {
+    console.log(`Deposit confirming: ${txid} (${currentConf}/${requiredConf})`);
+  }
 }
 
 async function handleWithdrawalCompleted(base44, payload) {
