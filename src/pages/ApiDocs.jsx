@@ -391,6 +391,55 @@ const API_ENDPOINTS = [
       last_7d: '312.89',
       total_entries: 156
     }
+  },
+  {
+    action: 'admin_sweep_fees',
+    method: 'POST',
+    auth: 'Required (Admin)',
+    description: 'Request a protocol fee sweep (locks funds, no on-chain tx yet)',
+    request: {
+      action: 'sweep_fees',
+      chain: 'ETH',
+      amount: '100.00',
+      destination_address: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb'
+    },
+    response: {
+      success: true,
+      sweep_id: 'sweep_123',
+      chain: 'ETH',
+      amount: '100.00',
+      destination_address: '0x742d35Cc...',
+      status: 'requested',
+      protocol_balance: {
+        available: '423.45',
+        locked: '100.00'
+      }
+    }
+  },
+  {
+    action: 'admin_list_sweeps',
+    method: 'POST',
+    auth: 'Required (Admin)',
+    description: 'List protocol fee sweep requests',
+    request: {
+      action: 'list_sweeps',
+      chain: 'ETH',
+      status: 'requested',
+      limit: 50
+    },
+    response: {
+      sweeps: [
+        {
+          id: 'sweep_123',
+          chain: 'ETH',
+          amount: '100.00',
+          destination_address: '0x742d35Cc...',
+          status: 'requested',
+          requested_by: 'admin_456',
+          created_date: '2024-01-01T12:00:00Z'
+        }
+      ]
+    }
   }
 ];
 

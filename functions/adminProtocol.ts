@@ -1,5 +1,42 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
+// Decimal-safe math
+const SCALE = BigInt(10 ** 18);
+
+function toScaled(amount) {
+  if (!amount) return 0n;
+  if (typeof amount === 'string') {
+    const [whole, frac = ''] = amount.split('.');
+    const paddedFrac = frac.padEnd(18, '0').slice(0, 18);
+    return BigInt(whole + paddedFrac);
+  }
+  return BigInt(Math.round(Number(amount) * 1e18));
+}
+
+function fromScaled(scaled) {
+  const str = scaled.toString().padStart(19, '0');
+  const whole = str.slice(0, -18) || '0';
+  const frac = str.slice(-18).replace(/0+$/, '') || '0';
+  return frac === '0' ? whole : `${whole}.${frac}`;
+}
+
+function subtractDecimal(a, b) {
+  const result = toScaled(a) - toScaled(b);
+  return fromScaled(result < 0n ? 0n : result);
+}
+
+function addDecimal(a, b) {
+  return fromScaled(toScaled(a) + toScaled(b));
+}
+
+function compareDecimal(a, b) {
+  const scaledA = toScaled(a);
+  const scaledB = toScaled(b);
+  if (scaledA > scaledB) return 1;
+  if (scaledA < scaledB) return -1;
+  return 0;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -129,6 +166,124 @@ Deno.serve(async (req) => {
         last_7d: fromScaled(last7d),
         total_entries: allEntries.length
       });
+    }
+
+    // POST /admin/sweep_fees - Request a protocol fee sweep
+    if (action === 'sweep_fees') {
+      const { chain, amount, destination_address } = body;
+
+      // Validation
+      if (!chain || !['ETH', 'BTC'].includes(chain)) {
+        return Response.json({ error: 'Invalid chain. Must be ETH or BTC' }, { status: 400 });
+      }
+      if (!amount || compareDecimal(amount, '0') <= 0) {
+        return Response.json({ error: 'Amount must be greater than 0' }, { status: 400 });
+      }
+      if (!destination_address) {
+        return Response.json({ error: 'destination_address is required' }, { status: 400 });
+      }
+
+      // Get protocol account
+      const accounts = await base44.asServiceRole.entities.LedgerAccount.filter({
+        owner_type: 'protocol',
+        chain
+      });
+
+      if (accounts.length === 0) {
+        return Response.json({ error: `Protocol account not found for chain ${chain}` }, { status: 404 });
+      }
+
+      const protocolAccount = accounts[0];
+      const availableBalance = protocolAccount.available_balance || '0';
+
+      // Check sufficient balance
+      if (compareDecimal(amount, availableBalance) > 0) {
+        return Response.json({ 
+          error: `Insufficient balance. Available: ${availableBalance}, Requested: ${amount}` 
+        }, { status: 400 });
+      }
+
+      // Create sweep record
+      const sweep = await base44.asServiceRole.entities.Sweep.create({
+        chain,
+        amount,
+        destination_address,
+        status: 'requested',
+        requested_by: user.id
+      });
+
+      // Lock funds: move from available to locked
+      const newAvailable = subtractDecimal(availableBalance, amount);
+      const newLocked = addDecimal(protocolAccount.locked_balance || '0', amount);
+
+      await base44.asServiceRole.entities.LedgerAccount.update(protocolAccount.id, {
+        available_balance: newAvailable,
+        locked_balance: newLocked
+      });
+
+      // Create ledger entry
+      await base44.asServiceRole.entities.LedgerEntry.create({
+        chain,
+        amount,
+        entry_type: 'lock',
+        from_owner_type: 'protocol',
+        from_owner_id: null,
+        to_owner_type: 'protocol',
+        to_owner_id: null,
+        metadata: JSON.stringify({
+          sweep_id: sweep.id,
+          destination_address,
+          action: 'protocol_fee_sweep_requested'
+        })
+      });
+
+      // Emit event
+      await base44.asServiceRole.entities.Event.create({
+        event_type: 'funds_locked',
+        entity_type: 'transaction',
+        entity_id: sweep.id,
+        actor_type: 'admin',
+        actor_id: user.id,
+        details: JSON.stringify({
+          stage: 'protocol_fee_sweep_requested',
+          chain,
+          amount,
+          destination_address,
+          sweep_id: sweep.id,
+          new_available: newAvailable,
+          new_locked: newLocked
+        })
+      });
+
+      return Response.json({
+        success: true,
+        sweep_id: sweep.id,
+        chain,
+        amount,
+        destination_address,
+        status: 'requested',
+        protocol_balance: {
+          available: newAvailable,
+          locked: newLocked
+        }
+      });
+    }
+
+    // GET sweeps list
+    if (action === 'list_sweeps') {
+      const { chain, status, limit = 50 } = body;
+      
+      const filter = {};
+      if (chain) filter.chain = chain;
+      if (status) filter.status = status;
+
+      const sweeps = await base44.asServiceRole.entities.Sweep.filter(
+        filter,
+        '-created_date',
+        limit
+      );
+
+      return Response.json({ sweeps });
     }
 
     return Response.json({ error: 'Unknown action' }, { status: 400 });
