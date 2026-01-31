@@ -932,7 +932,10 @@ Deno.serve(async (req) => {
         ? (TATUM_TESTNET ? 'ethereum-sepolia' : 'ethereum')
         : (TATUM_TESTNET ? 'bitcoin-testnet' : 'bitcoin');
 
-      const tatumResponse = await fetch(`https://api.tatum.io/v3/${tatumChain}/address/${DEPOSIT_MASTER_XPUB}/${derivationIndex}`, {
+      const tatumUrl = `https://api.tatum.io/v3/${tatumChain}/address/${DEPOSIT_MASTER_XPUB}/${derivationIndex}`;
+      console.log(`[generate_deposit_address] Calling Tatum: ${tatumUrl}`);
+      
+      const tatumResponse = await fetch(tatumUrl, {
         method: 'GET',
         headers: {
           'x-api-key': TATUM_API_KEY
@@ -940,8 +943,11 @@ Deno.serve(async (req) => {
       });
 
       if (!tatumResponse.ok) {
-        const errData = await tatumResponse.json().catch(() => ({}));
-        return errorResponse('INTERNAL_ERROR', errData.message || 'Tatum API error');
+        const errText = await tatumResponse.text();
+        console.error(`[generate_deposit_address] Tatum error ${tatumResponse.status}: ${errText}`);
+        let errData = {};
+        try { errData = JSON.parse(errText); } catch {}
+        return errorResponse('INTERNAL_ERROR', errData.message || `Tatum API error: ${tatumResponse.status}`);
       }
 
       const tatumData = await tatumResponse.json();
