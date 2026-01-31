@@ -18,7 +18,9 @@ import {
   Key,
   Copy,
   Pause,
-  Play
+  Play,
+  Wallet,
+  RefreshCw
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -38,6 +40,11 @@ export default function Workers() {
   const { data: workers = [], isLoading } = useQuery({
     queryKey: ['workers'],
     queryFn: () => base44.entities.Worker.list('-created_date')
+  });
+
+  const { data: workerAddresses = [] } = useQuery({
+    queryKey: ['worker-addresses'],
+    queryFn: () => base44.entities.WorkerAddress.list()
   });
 
   const createMutation = useMutation({
@@ -102,6 +109,10 @@ export default function Workers() {
   const copyApiKey = (key) => {
     navigator.clipboard.writeText(key);
     toast.success('API key copied to clipboard');
+  };
+
+  const getWorkerAddresses = (workerId) => {
+    return workerAddresses.filter(a => a.worker_id === workerId);
   };
 
   const getReputationColor = (score) => {
@@ -241,6 +252,34 @@ export default function Workers() {
                   <p className="text-xs text-slate-500">Expired</p>
                   <p className="text-lg text-slate-400">{worker.tasks_expired || 0}</p>
                 </div>
+              </div>
+
+              {/* Deposit Addresses */}
+              <div className="mt-4 pt-4 border-t border-red-900/30">
+                <p className="text-xs text-slate-500 mb-2 flex items-center gap-1">
+                  <Wallet className="w-3 h-3" /> Deposit Addresses
+                </p>
+                {(() => {
+                  const addresses = getWorkerAddresses(worker.id);
+                  if (addresses.length === 0) {
+                    return (
+                      <p className="text-xs text-slate-600 italic">No deposit addresses generated</p>
+                    );
+                  }
+                  return (
+                    <div className="space-y-1">
+                      {addresses.map(addr => (
+                        <div key={addr.id} className="flex items-center gap-2 p-1.5 bg-slate-900/50 rounded text-xs">
+                          <span className="text-slate-500 w-8">{addr.chain}</span>
+                          <code className="text-red-400 flex-1 truncate">{addr.address}</code>
+                          <button onClick={() => { navigator.clipboard.writeText(addr.address); toast.success('Address copied'); }} className="text-slate-500 hover:text-slate-300">
+                            <Copy className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
 
               {worker.capabilities?.length > 0 && (

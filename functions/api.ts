@@ -678,6 +678,111 @@ Deno.serve(async (req) => {
         total_balance: (ledger.available_balance || 0) + (ledger.locked_balance || 0)
       });
     }
+
+    // Get worker deposit addresses
+    if (action === 'get_deposit_addresses') {
+      const addresses = await base44.asServiceRole.entities.WorkerAddress.filter({
+        worker_id: worker.id
+      });
+
+      const result = { ETH: null, BTC: null };
+      for (const addr of addresses) {
+        result[addr.chain] = addr.address;
+      }
+
+      return successResponse(result);
+    }
+
+    // Generate new deposit address
+    if (action === 'generate_deposit_address') {
+      const { chain } = body;
+      if (!chain || !['ETH', 'BTC'].includes(chain)) {
+        return errorResponse('INVALID_PAYLOAD', 'chain must be ETH or BTC');
+      }
+
+      // Check if address already exists
+      const existing = await base44.asServiceRole.entities.WorkerAddress.filter({
+        worker_id: worker.id,
+        chain
+      });
+
+      if (existing.length > 0) {
+        return successResponse({
+          chain,
+          address: existing[0].address,
+          message: 'Address already exists'
+        });
+      }
+
+      // Generate address via Tatum (using xpub derivation)
+      const TATUM_API_KEY = Deno.env.get('TATUM_API_KEY');
+      const TATUM_TESTNET = Deno.env.get('TATUM_TESTNET') === 'true';
+      const ETH_XPUB = Deno.env.get('TATUM_ETH_XPUB');
+      const BTC_XPUB = Deno.env.get('TATUM_BTC_XPUB');
+
+      if (!TATUM_API_KEY) {
+        return errorResponse('INTERNAL_ERROR', 'Tatum API not configured');
+      }
+
+      const xpub = chain === 'ETH' ? ETH_XPUB : BTC_XPUB;
+      if (!xpub) {
+        return errorResponse('INTERNAL_ERROR', `${chain} xpub not configured`);
+      }
+
+      // Get next derivation index
+      const allAddresses = await base44.asServiceRole.entities.WorkerAddress.filter({ chain });
+      const derivationIndex = allAddresses.length;
+
+      // Generate address from xpub
+      const tatumChain = chain === 'ETH' 
+        ? (TATUM_TESTNET ? 'ethereum-sepolia' : 'ethereum')
+        : (TATUM_TESTNET ? 'bitcoin-testnet' : 'bitcoin');
+
+      const tatumResponse = await fetch(`https://api.tatum.io/v3/${tatumChain}/address/${xpub}/${derivationIndex}`, {
+        method: 'GET',
+        headers: {
+          'x-api-key': TATUM_API_KEY
+        }
+      });
+
+      if (!tatumResponse.ok) {
+        const errData = await tatumResponse.json();
+        return errorResponse('INTERNAL_ERROR', errData.message || 'Tatum API error');
+      }
+
+      const tatumData = await tatumResponse.json();
+      const generatedAddress = tatumData.address;
+
+      // Store WorkerAddress
+      const workerAddress = await base44.asServiceRole.entities.WorkerAddress.create({
+        worker_id: worker.id,
+        chain,
+        address: generatedAddress,
+        derivation_index: derivationIndex
+      });
+
+      // Register in TrackedAddress
+      await base44.asServiceRole.entities.TrackedAddress.create({
+        chain,
+        address: generatedAddress,
+        owner_type: 'worker',
+        owner_id: worker.id,
+        purpose: 'deposit'
+      });
+
+      // Log event
+      await logEvent(base44, 'worker_deposit_address_created', 'worker', worker.id, 'worker', worker.id, {
+        chain,
+        address: generatedAddress,
+        derivation_index: derivationIndex
+      });
+
+      return successResponse({
+        chain,
+        address: generatedAddress,
+        message: 'Address generated and registered'
+      });
+    }
     
     // Withdraw funds
     if (action === 'withdraw_funds') {

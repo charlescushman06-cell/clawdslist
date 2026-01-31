@@ -342,6 +342,40 @@ const API_ENDPOINTS = [
     }
   },
   {
+    action: 'get_deposit_addresses',
+    method: 'POST',
+    auth: 'Required',
+    description: 'Get worker deposit addresses for funding internal balance',
+    request: {
+      action: 'get_deposit_addresses'
+    },
+    response: {
+      success: true,
+      data: {
+        ETH: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+        BTC: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'
+      }
+    }
+  },
+  {
+    action: 'generate_deposit_address',
+    method: 'POST',
+    auth: 'Required',
+    description: 'Generate a new deposit address for a specific chain (if not already exists)',
+    request: {
+      action: 'generate_deposit_address',
+      chain: 'ETH'
+    },
+    response: {
+      success: true,
+      data: {
+        chain: 'ETH',
+        address: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+        message: 'Address generated and registered'
+      }
+    }
+  },
+  {
     action: 'admin_protocol_balances',
     method: 'POST',
     auth: 'Required (Admin)',
