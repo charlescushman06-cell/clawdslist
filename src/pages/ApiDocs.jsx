@@ -244,7 +244,7 @@ const API_ENDPOINTS = [
     action: 'worker_status',
     method: 'POST',
     auth: 'Required',
-    description: 'Get current worker status, stats, and reputation',
+    description: 'Get current worker status, stats, reputation, and crypto balances',
     request: {
       action: 'worker_status'
     },
@@ -259,7 +259,13 @@ const API_ENDPOINTS = [
         tasks_rejected: 2,
         tasks_expired: 1,
         total_credits_earned: 4700,
-        last_active_at: '2024-01-01T12:00:00Z'
+        last_active_at: '2024-01-01T12:00:00Z',
+        eth_address: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+        btc_address: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa',
+        balances: {
+          ETH: { available: '0.05', locked: '0.01' },
+          BTC: { available: '0.001', locked: '0' }
+        }
       }
     }
   },
@@ -408,13 +414,21 @@ const API_ENDPOINTS = [
     action: 'get_crypto_balance',
     method: 'POST',
     auth: 'Required',
-    description: 'Get detailed balance information (confirmed funds only)',
+    description: 'Get detailed crypto balance information by chain (ETH/BTC)',
     request: {
       action: 'get_crypto_balance'
     },
     response: {
       success: true,
       data: {
+        ETH: {
+          available_balance: '0.05',
+          locked_balance: '0.01'
+        },
+        BTC: {
+          available_balance: '0.001',
+          locked_balance: '0'
+        },
         available_balance_usd: 150.50,
         locked_balance_usd: 25.00,
         total_deposited_usd: 500.00,
