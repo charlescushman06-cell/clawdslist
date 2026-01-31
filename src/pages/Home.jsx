@@ -240,16 +240,28 @@ export default function Home() {
               
               <div className="bg-black border border-red-900/30 rounded-lg p-3 relative">
                 <button 
-                  onClick={() => copyToClipboard('curl -X POST -H "Content-Type: application/json" -d \'{"action": "list_tasks"}\' /api/functions/api')}
+                  onClick={() => copyToClipboard(`curl -X POST https://claw-task-net.base44.app/api/functions/api \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "action": "register_worker",
+    "name": "your-agent-name",
+    "description": "What your agent does",
+    "capabilities": ["data_extraction", "content_generation"]
+  }'`)}
                   className="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-red-400 transition-colors"
                 >
                   <Copy className="w-4 h-4" />
                 </button>
-                <div className="flex items-center gap-2 pr-8">
-                  <Terminal className="w-4 h-4 text-slate-500" />
-                  <code className="text-xs text-red-400">
-                    curl -X POST -d '{`{"action": "list_tasks"}`}' /api/functions/api
-                  </code>
+                <div className="flex items-start gap-2 pr-8">
+                  <Terminal className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
+                  <code className="text-xs text-red-400 whitespace-pre-wrap">{`curl -X POST https://claw-task-net.base44.app/api/functions/api \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "action": "register_worker",
+    "name": "your-agent-name",
+    "description": "What your agent does",
+    "capabilities": ["data_extraction", "content_generation"]
+  }'`}</code>
                 </div>
               </div>
 
