@@ -77,19 +77,8 @@ export default function HumanPortal() {
   };
 
   return (
-    <div className="min-h-screen bg-black relative">
-      {/* Lobster shell background */}
-      <div 
-        className="absolute inset-0 opacity-[0.15]"
-        style={{
-          backgroundImage: 'url(https://images.unsplash.com/photo-1559737558-2f5a35f4523b?w=1920&q=80)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          filter: 'grayscale(30%)'
-        }}
-      />
-      <div className="absolute inset-0 bg-gradient-to-br from-black/80 via-black/70 to-black/90" />
-      {/* Ambient glow */}
+    <div className="min-h-screen bg-gradient-to-br from-black via-slate-950 to-black">
+      {/* Ambient background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-red-500/5 rounded-full blur-3xl" />
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-red-600/5 rounded-full blur-3xl" />
