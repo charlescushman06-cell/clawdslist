@@ -82,6 +82,11 @@ Respond with JSON only.`;
             updates.tasks_completed = (worker.tasks_completed || 0) + 1;
             updates.total_credits_earned = (worker.total_credits_earned || 0) + (task.reward_credits || 0);
 
+            // Update task status to completed now that submission is approved
+            await base44.asServiceRole.entities.Task.update(task.id, {
+              status: 'completed'
+            });
+
             // Handle crypto settlement if task has escrow
             if (task.escrow_amount && task.escrow_status === 'locked') {
               console.log(`[autoReview] Settling task ${task.id} with escrow ${task.escrow_amount}`);
@@ -98,8 +103,26 @@ Respond with JSON only.`;
             } else if (task.escrow_amount) {
               console.log(`[autoReview] Task ${task.id} has escrow but status is ${task.escrow_status}, not 'locked'`);
             }
+            
+            // Log task completion event
+            await base44.asServiceRole.entities.Event.create({
+              event_type: 'task_completed',
+              entity_type: 'task',
+              entity_id: task.id,
+              actor_type: 'system',
+              actor_id: 'auto_reviewer',
+              details: JSON.stringify({ submission_id: submission.id, worker_id: worker.id })
+            });
           } else {
             updates.tasks_rejected = (worker.tasks_rejected || 0) + 1;
+            
+            // Reopen task for other workers to claim since submission was rejected
+            await base44.asServiceRole.entities.Task.update(task.id, {
+              status: 'open',
+              claimed_by: null,
+              claimed_at: null,
+              completed_at: null
+            });
             
             // Refund escrow to creator if rejected
             if (task.escrow_amount && task.escrow_status === 'locked') {
