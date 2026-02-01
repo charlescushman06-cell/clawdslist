@@ -39,6 +39,29 @@ function subtractDecimal(a, b) {
   return fromScaled(toScaled(a) - toScaled(b));
 }
 
+/**
+ * Convert wei to ETH (18 decimals)
+ */
+function weiToEth(weiValue) {
+  if (!weiValue) return '0';
+  const str = String(weiValue).trim();
+  if (!str || str === '0') return '0';
+  
+  // If it already has a decimal, assume it's already in ETH
+  if (str.includes('.')) return str;
+  
+  // If it's a small number (< 1e15), assume it's already in ETH
+  // Real wei values for meaningful deposits are typically > 1e15
+  if (str.length < 15) return str;
+  
+  // Convert wei to ETH: divide by 10^18
+  const padded = str.padStart(19, '0');
+  const whole = padded.slice(0, -18).replace(/^0+/, '') || '0';
+  const frac = padded.slice(-18).replace(/0+$/, '');
+  
+  return frac ? `${whole}.${frac}` : whole;
+}
+
 // Parse Tatum webhook payload
 function parseTatumPayload(payload) {
   let chain = null;
@@ -55,7 +78,7 @@ function parseTatumPayload(payload) {
     chain = payload.chain.toUpperCase().includes('ETH') ? 'ETH' : 
             payload.chain.toUpperCase().includes('BTC') ? 'BTC' : null;
   } else if (payload.currency) {
-    chain = payload.currency.toUpperCase() === 'ETH' ? 'ETH' :
+    chain = payload.currency.toUpperCase() === 'ETH' ?'ETH' :
             payload.currency.toUpperCase() === 'BTC' ? 'BTC' : null;
   } else if (payload.asset) {
     chain = payload.asset.toUpperCase() === 'ETH' ? 'ETH' :
@@ -64,7 +87,17 @@ function parseTatumPayload(payload) {
 
   address = payload.address || payload.to || payload.counterAddress;
   txHash = payload.txId || payload.txHash || payload.transactionHash || payload.hash;
-  amount = payload.amount?.toString() || payload.value?.toString() || '0';
+  
+  // Get raw amount - will convert based on chain
+  let rawAmount = payload.amount?.toString() || payload.value?.toString() || '0';
+  
+  // For ETH, Tatum often sends amounts in wei - convert to ETH
+  if (chain === 'ETH') {
+    amount = weiToEth(rawAmount);
+  } else {
+    amount = rawAmount;
+  }
+  
   confirmations = parseInt(payload.confirmations || payload.blockConfirmations || '0', 10);
 
   // Detect withdrawal by reference fields or transaction type

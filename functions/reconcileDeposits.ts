@@ -39,6 +39,25 @@ function addDecimal(a, b) {
 }
 
 /**
+ * Convert wei to ETH (18 decimals)
+ */
+function weiToEth(weiValue) {
+  if (!weiValue) return '0';
+  const str = String(weiValue).trim();
+  if (!str || str === '0') return '0';
+  
+  // If it already has a decimal, assume it's already in ETH
+  if (str.includes('.')) return str;
+  
+  // Pad to at least 19 chars to handle 18 decimals
+  const padded = str.padStart(19, '0');
+  const whole = padded.slice(0, -18).replace(/^0+/, '') || '0';
+  const frac = padded.slice(-18).replace(/0+$/, '');
+  
+  return frac ? `${whole}.${frac}` : whole;
+}
+
+/**
  * Fetch transactions for an address from Tatum
  */
 async function fetchAddressTransactions(chain, address, pageSize = 50) {
@@ -59,11 +78,12 @@ async function fetchAddressTransactions(chain, address, pageSize = 50) {
     if (response.ok) {
       const data = await response.json();
       // Filter for incoming transactions
+      // NOTE: Tatum returns ETH values in wei, must convert
       transactions = (data || []).filter(tx => 
         tx.to?.toLowerCase() === address.toLowerCase() && tx.value && parseFloat(tx.value) > 0
       ).map(tx => ({
         txHash: tx.hash || tx.txId,
-        amount: tx.value,
+        amount: weiToEth(tx.value), // Convert wei to ETH
         confirmations: tx.blockNumber ? 999 : 0, // If mined, assume confirmed
         from: tx.from
       }));
