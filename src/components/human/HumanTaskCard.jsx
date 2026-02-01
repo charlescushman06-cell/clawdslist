@@ -144,84 +144,85 @@ export default function HumanTaskCard({ task, submissions }) {
 
   return (
     <>
-      <div className="bg-slate-900 border border-red-500/40 rounded-none p-5 hover:border-red-500/70 shadow-[0_0_15px_rgba(239,68,68,0.15)] hover:shadow-[0_0_25px_rgba(239,68,68,0.25)] transition-all flex flex-col">
+      <div className="bg-slate-900 border border-red-500/40 rounded-none p-3 sm:p-5 hover:border-red-500/70 shadow-[0_0_15px_rgba(239,68,68,0.15)] hover:shadow-[0_0_25px_rgba(239,68,68,0.25)] transition-all flex flex-col">
         {/* Header */}
-        <div className="flex items-start justify-between mb-3">
+        <div className="flex items-start justify-between gap-2 mb-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-base font-semibold text-slate-100 truncate">{task.title}</h3>
+              <h3 className="text-sm sm:text-base font-semibold text-slate-100 truncate">{task.title}</h3>
             </div>
-            <p className="text-sm text-slate-400 line-clamp-2">{task.description}</p>
+            <p className="text-xs sm:text-sm text-slate-400 line-clamp-2">{task.description}</p>
           </div>
-          <Badge className={`${statusConfig.color} flex items-center gap-1 whitespace-nowrap ml-4`}>
-            <StatusIcon className="w-3 h-3" />
-            {statusConfig.label}
+          <Badge className={`${statusConfig.color} flex items-center gap-1 whitespace-nowrap text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5`}>
+            <StatusIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+            <span className="hidden sm:inline">{statusConfig.label}</span>
+            <span className="sm:hidden">{statusConfig.label.split(' ')[0]}</span>
           </Badge>
         </div>
 
         {/* Metadata */}
-        <div className="grid grid-cols-3 gap-2 mb-3 p-2 bg-black/50 border border-red-900/30 rounded-lg">
+        <div className="grid grid-cols-3 gap-1 sm:gap-2 mb-3 p-2 bg-black/50 border border-red-900/30 rounded-lg">
           <div className="text-center">
-            <div className="flex items-center justify-center gap-1 text-red-400 mb-1 h-5 overflow-hidden">
-              <DollarSign className="w-4 h-4" />
+            <div className="flex items-center justify-center gap-0.5 sm:gap-1 text-red-400 mb-1 h-5 overflow-hidden">
+              <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
               {task.reward && task.task_price_usd ? (
                 <div className="relative">
                   <span 
-                    className={`text-sm font-semibold block transition-all duration-300 ${showEth ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 absolute'}`}
+                    className={`text-xs sm:text-sm font-semibold block transition-all duration-300 ${showEth ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 absolute'}`}
                   >
-                    {task.reward} {task.currency || 'ETH'}
+                    {task.reward}
                   </span>
                   <span 
-                    className={`text-sm font-semibold block transition-all duration-300 ${!showEth ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 absolute'}`}
+                    className={`text-xs sm:text-sm font-semibold block transition-all duration-300 ${!showEth ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 absolute'}`}
                   >
                     ${task.task_price_usd}
                   </span>
                 </div>
               ) : (
-                <span className="text-sm font-semibold">
-                  {task.reward ? `${task.reward} ${task.currency || 'ETH'}` : task.task_price_usd ? `$${task.task_price_usd}` : '0'}
+                <span className="text-xs sm:text-sm font-semibold truncate">
+                  {task.reward ? `${task.reward}` : task.task_price_usd ? `$${task.task_price_usd}` : '0'}
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-500">
-              {task.reward && task.task_price_usd ? (showEth ? 'ETH' : 'USD') : 'Payment'}
+            <p className="text-[10px] sm:text-xs text-slate-500">
+              {task.reward && task.task_price_usd ? (showEth ? 'ETH' : 'USD') : 'Pay'}
             </p>
           </div>
           <div className="text-center">
-            <div className="flex items-center justify-center gap-1 text-red-400 mb-1">
-              <Shield className="w-4 h-4" />
-              <span className="text-sm font-semibold">{task.required_stake_usd || 0}</span>
+            <div className="flex items-center justify-center gap-0.5 sm:gap-1 text-red-400 mb-1">
+              <Shield className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+              <span className="text-xs sm:text-sm font-semibold">{task.required_stake_usd || 0}</span>
             </div>
-            <p className="text-xs text-slate-500">Bot Stake</p>
+            <p className="text-[10px] sm:text-xs text-slate-500">Stake</p>
           </div>
           <div className="text-center">
             {(task.status === 'claimed' || (task.status === 'open' && (task.expires_at || task.deadline))) && timeRemaining !== null ? (
               timeRemaining === 0 ? (
                 <>
-                  <div className="flex items-center justify-center gap-1 mb-1 text-red-500">
-                    <XCircle className="w-4 h-4" />
-                    <span className="text-sm font-semibold">Expired</span>
+                  <div className="flex items-center justify-center gap-0.5 sm:gap-1 mb-1 text-red-500">
+                    <XCircle className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-semibold">Exp</span>
                   </div>
-                  <p className="text-xs text-slate-500">Time Up</p>
+                  <p className="text-[10px] sm:text-xs text-slate-500">Time Up</p>
                 </>
               ) : (
                 <>
-                  <div className={`flex items-center justify-center gap-1 mb-1 ${getTimeColor(timeRemaining)}`}>
-                    <Timer className="w-4 h-4" />
-                    <span className="text-sm font-semibold">{formatTimeRemaining(timeRemaining)}</span>
+                  <div className={`flex items-center justify-center gap-0.5 sm:gap-1 mb-1 ${getTimeColor(timeRemaining)}`}>
+                    <Timer className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-semibold">{formatTimeRemaining(timeRemaining)}</span>
                   </div>
-                  <p className="text-xs text-slate-500">
-                    {task.status === 'claimed' ? 'Time Left' : 'Expires In'}
+                  <p className="text-[10px] sm:text-xs text-slate-500">
+                    {task.status === 'claimed' ? 'Left' : 'Exp'}
                   </p>
                 </>
               )
             ) : (
               <>
-                <div className="flex items-center justify-center gap-1 text-red-400 mb-1">
-                  <Clock className="w-4 h-4" />
-                  <span className="text-sm font-semibold">{task.claim_timeout_minutes || '-'}</span>
+                <div className="flex items-center justify-center gap-0.5 sm:gap-1 text-red-400 mb-1">
+                  <Clock className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                  <span className="text-xs sm:text-sm font-semibold">{task.claim_timeout_minutes || '-'}</span>
                 </div>
-                <p className="text-xs text-slate-500">Minutes</p>
+                <p className="text-[10px] sm:text-xs text-slate-500">Min</p>
               </>
             )}
           </div>
@@ -242,24 +243,25 @@ export default function HumanTaskCard({ task, submissions }) {
 
         {/* Footer */}
         <div className="flex items-center justify-between pt-3 border-t border-slate-800 mt-auto">
-          <div className="text-xs text-slate-500">
-            Posted {format(new Date(task.created_date), 'MMM d, yyyy')}
+          <div className="text-[10px] sm:text-xs text-slate-500">
+            {format(new Date(task.created_date), 'MMM d')}
           </div>
           <Button 
             size="sm" 
             variant="outline"
             onClick={() => setShowDetails(true)}
-            className="border-slate-700 text-slate-300 hover:text-slate-100"
+            className="border-slate-700 text-slate-300 hover:text-slate-100 text-xs px-2 sm:px-3"
           >
-            <Eye className="w-4 h-4 mr-2" />
-            View Details
+            <Eye className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
+            <span className="hidden sm:inline">View Details</span>
+            <span className="sm:hidden ml-1">View</span>
           </Button>
         </div>
       </div>
 
       {/* Details Dialog */}
       <Dialog open={showDetails} onOpenChange={setShowDetails}>
-        <DialogContent className="bg-slate-900 border-slate-700 max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="bg-slate-900 border-slate-700 max-w-4xl max-h-[90vh] overflow-y-auto mx-2 sm:mx-auto w-[calc(100%-1rem)] sm:w-full">
           <DialogHeader>
             <DialogTitle className="text-slate-100 text-xl">{task.title}</DialogTitle>
           </DialogHeader>
