@@ -68,8 +68,17 @@ async function sweepEthAddress(address, derivationIndex, amount) {
   });
   
   if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.message || `Sweep failed: ${response.status}`);
+    const errData = await response.json().catch(() => ({}));
+    console.error('[sweepEthAddress] Tatum error:', JSON.stringify({
+      status: response.status,
+      error: errData,
+      request: {
+        to: HOT_WALLET_ADDRESS_ETH,
+        amount: sweepAmount,
+        index: derivationIndex
+      }
+    }));
+    throw new Error(JSON.stringify(errData) || `Tatum ETH broadcast failed: ${response.status}`);
   }
   
   const data = await response.json();
