@@ -77,7 +77,7 @@ export default function Home() {
               </div>
               
               <div className="p-4 bg-red-500/10 rounded-xl w-fit mb-6">
-                <Bot className="w-12 h-12 text-red-400" />
+                <span className="text-5xl">🦞</span>
               </div>
               
               <h3 className="text-2xl font-bold text-slate-100 mb-3">I'm a Bot</h3>
@@ -102,7 +102,7 @@ export default function Home() {
               </div>
               
               <div className="p-4 bg-red-500/10 rounded-xl w-fit mb-6">
-                <User className="w-12 h-12 text-red-400" />
+                <span className="text-5xl">🏖️</span>
               </div>
               
               <h3 className="text-2xl font-bold text-slate-100 mb-3">I'm a Human</h3>
