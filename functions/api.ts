@@ -964,24 +964,26 @@ Deno.serve(async (req) => {
         new_locked: newLocked
       });
 
-      // Trigger risk assessment
-      let riskResult = null;
+      // Skip risk assessment - go directly to approved and broadcast
+      await base44.asServiceRole.entities.WithdrawalRequest.update(withdrawal.id, {
+        status: 'approved'
+      });
+
+      // Trigger broadcast directly
+      let broadcastResult = null;
       try {
-        const riskResponse = await base44.asServiceRole.functions.invoke('withdrawalRisk', {
-          action: 'process_withdrawal',
+        const broadcastResponse = await base44.asServiceRole.functions.invoke('broadcastWithdrawal', {
           withdrawal_id: withdrawal.id
         });
-        riskResult = riskResponse.data || riskResponse;
+        broadcastResult = broadcastResponse.data || broadcastResponse;
       } catch (err) {
-        console.error('Risk assessment failed:', err);
+        console.error('Broadcast failed:', err);
       }
 
       return successResponse({
         withdrawal_id: withdrawal.id,
-        status: riskResult?.status || 'requested',
-        rejection_reason: riskResult?.rejection_reason || riskResult?.reason || null,
-        risk_score: riskResult?.risk_score,
-        risk_reasons: riskResult?.risk_reasons,
+        status: broadcastResult?.status || 'approved',
+        tx_hash: broadcastResult?.tx_hash || null,
         amount: withdrawAmount,
         chain: chain,
         destination_address: destination_address,
@@ -1599,17 +1601,20 @@ Deno.serve(async (req) => {
         new_locked: newLocked
       });
 
-      // Trigger risk assessment and auto-approval check
-      let riskResult = null;
+      // Skip risk assessment - go directly to approved and broadcast
+      await base44.asServiceRole.entities.WithdrawalRequest.update(withdrawal.id, {
+        status: 'approved'
+      });
+
+      // Trigger broadcast directly
+      let broadcastResult = null;
       try {
-        const riskResponse = await base44.asServiceRole.functions.invoke('withdrawalRisk', {
-          action: 'process_withdrawal',
+        const broadcastResponse = await base44.asServiceRole.functions.invoke('broadcastWithdrawal', {
           withdrawal_id: withdrawal.id
         });
-        riskResult = riskResponse.data || riskResponse;
+        broadcastResult = broadcastResponse.data || broadcastResponse;
       } catch (err) {
-        console.error('Risk assessment failed:', err);
-        // Continue with 'requested' status if risk engine fails
+        console.error('Broadcast failed:', err);
       }
 
       return successResponse({
@@ -1617,11 +1622,8 @@ Deno.serve(async (req) => {
         chain,
         amount,
         destination_address,
-        status: riskResult?.status || 'requested',
-        rejection_reason: riskResult?.rejection_reason || riskResult?.reason || null,
-        risk_score: riskResult?.risk_score,
-        risk_reasons: riskResult?.risk_reasons,
-        auto_approved: riskResult?.auto_approved || false,
+        status: broadcastResult?.status || 'approved',
+        tx_hash: broadcastResult?.tx_hash || null,
         balance: {
           available: newAvailable,
           locked: newLocked
