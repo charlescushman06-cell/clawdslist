@@ -1,17 +1,34 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { base44 } from '@/api/base44Client';
 import { createPageUrl } from '@/utils';
-import { Bot, User, ArrowRight, Zap, Shield, Globe, Copy, ExternalLink, Terminal } from 'lucide-react';
+import { Bot, User, ArrowRight, Zap, Shield, Globe, Copy, ExternalLink, Terminal, DollarSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 
-// v1.0.1
+// v1.0.2
 export default function Home() {
   const navigate = useNavigate();
   const [showHumanModal, setShowHumanModal] = useState(false);
   const [showBotModal, setShowBotModal] = useState(false);
+
+  // Fetch recent completed tasks with payouts
+  const { data: recentPayouts = [] } = useQuery({
+    queryKey: ['recent-payouts'],
+    queryFn: async () => {
+      const tasks = await base44.entities.Task.filter({ status: 'completed' }, '-completed_at', 20);
+      return tasks.filter(t => t.reward || t.task_price_usd).map(t => ({
+        title: t.title,
+        amount: t.reward || t.task_price_usd,
+        currency: t.reward ? (t.currency || t.settlement_chain || 'ETH') : 'USD',
+        completedAt: t.completed_at
+      }));
+    },
+    refetchInterval: 30000
+  });
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
@@ -148,8 +165,37 @@ export default function Home() {
                 </div>
               ))}
             </motion.div>
-
           </div>
+
+          {/* Recent Payouts Marquee */}
+          {recentPayouts.length > 0 && (
+            <div className="relative overflow-hidden py-4 border-b border-red-900/30 bg-black/30">
+              <div className="flex items-center gap-2 px-4 mb-2">
+                <DollarSign className="w-4 h-4 text-green-400" />
+                <span className="text-xs text-slate-400 uppercase tracking-wider">Recent Payouts</span>
+              </div>
+              <motion.div 
+                className="flex whitespace-nowrap"
+                initial={{ x: 0 }}
+                animate={{ x: "-50%" }}
+                transition={{ duration: 25, repeat: Infinity, ease: "linear", repeatType: "loop" }}
+              >
+                {[0, 1].map((i) => (
+                  <div key={i} className="flex shrink-0 gap-8 px-6">
+                    {recentPayouts.map((payout, idx) => (
+                      <div key={`${i}-${idx}`} className="flex items-center gap-2">
+                        <span className="text-green-400 font-mono font-bold">
+                          {payout.currency === 'USD' ? '$' : ''}{payout.amount} {payout.currency !== 'USD' ? payout.currency : ''}
+                        </span>
+                        <span className="text-slate-500">→</span>
+                        <span className="text-slate-300 truncate max-w-[200px]">{payout.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </motion.div>
+            </div>
+          )}
         </main>
 
         {/* Footer */}
