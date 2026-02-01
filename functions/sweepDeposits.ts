@@ -39,6 +39,38 @@ async function getAddressBalance(chain, address) {
 }
 
 /**
+ * Derive ETH private key from mnemonic via Tatum
+ */
+async function deriveEthPrivateKey(mnemonic, index) {
+  const tatumChain = TATUM_TESTNET ? 'ethereum-sepolia' : 'ethereum';
+  
+  const response = await fetch(`https://api.tatum.io/v3/${tatumChain}/wallet/priv`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': TATUM_API_KEY
+    },
+    body: JSON.stringify({
+      mnemonic: mnemonic,
+      index: index
+    })
+  });
+  
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    console.error('[deriveEthPrivateKey] Tatum error:', JSON.stringify({
+      status: response.status,
+      error: err,
+      index: index
+    }));
+    throw new Error(`Failed to derive private key: ${err.message || response.status}`);
+  }
+  
+  const data = await response.json();
+  return data.key;
+}
+
+/**
  * Sweep ETH from a deposit address to hot wallet
  */
 async function sweepEthAddress(address, derivationIndex, amount) {
@@ -52,6 +84,9 @@ async function sweepEthAddress(address, derivationIndex, amount) {
     return { skipped: true, reason: 'Amount too small after gas reserve' };
   }
   
+  // Derive the private key for this deposit address
+  const privateKey = await deriveEthPrivateKey(DEPOSIT_MNEMONIC_ETH, derivationIndex);
+  
   const response = await fetch(`https://api.tatum.io/v3/${tatumChain}/transaction`, {
     method: 'POST',
     headers: {
@@ -62,8 +97,7 @@ async function sweepEthAddress(address, derivationIndex, amount) {
       to: HOT_WALLET_ADDRESS_ETH,
       amount: sweepAmount,
       currency: 'ETH',
-      mnemonic: DEPOSIT_MNEMONIC_ETH,
-      index: derivationIndex
+      fromPrivateKey: privateKey
     })
   });
   
@@ -78,7 +112,7 @@ async function sweepEthAddress(address, derivationIndex, amount) {
         index: derivationIndex
       }
     }));
-    throw new Error(JSON.stringify(errData) || `Tatum ETH broadcast failed: ${response.status}`);
+    throw new Error(errData.message || `Tatum ETH sweep failed: ${response.status}`);
   }
   
   const data = await response.json();
