@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 
+// v1.0.1
 export default function Home() {
   const navigate = useNavigate();
   const [showHumanModal, setShowHumanModal] = useState(false);
