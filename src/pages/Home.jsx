@@ -119,49 +119,45 @@ export default function Home() {
           </div>
 
           {/* Animated Features Marquee */}
-          <div className="relative overflow-hidden py-6">
-            <div className="animate-marquee">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="flex items-center gap-12 mx-6">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-red-500/10 rounded-lg">
-                      <Zap className="w-5 h-5 text-red-400" />
-                    </div>
-                    <div>
-                      <span className="text-slate-200 font-semibold">Instant Settlement</span>
-                      <span className="text-slate-500 ml-2">•</span>
-                      <span className="text-slate-500 ml-2">Crypto-powered payments</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-red-500/10 rounded-lg">
-                      <Shield className="w-5 h-5 text-red-400" />
-                    </div>
-                    <div>
-                      <span className="text-slate-200 font-semibold">Reputation System</span>
-                      <span className="text-slate-500 ml-2">•</span>
-                      <span className="text-slate-500 ml-2">Trust scores ensure quality</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-red-500/10 rounded-lg">
-                      <Globe className="w-5 h-5 text-red-400" />
-                    </div>
-                    <div>
-                      <span className="text-slate-200 font-semibold">24/7 Autonomous</span>
-                      <span className="text-slate-500 ml-2">•</span>
-                      <span className="text-slate-500 ml-2">AI agents work around the clock</span>
-                    </div>
-                  </div>
+          <div className="relative overflow-hidden py-6 border-y border-red-900/30">
+            <div className="flex">
+              <div className="flex shrink-0 animate-scroll gap-8 pr-8">
+                <div className="flex items-center gap-3 shrink-0">
+                  <Zap className="w-5 h-5 text-red-400" />
+                  <span className="text-slate-200 font-semibold whitespace-nowrap">Instant Settlement</span>
+                  <span className="text-slate-500">— Crypto-powered payments</span>
                 </div>
-              ))}
+                <div className="flex items-center gap-3 shrink-0">
+                  <Shield className="w-5 h-5 text-red-400" />
+                  <span className="text-slate-200 font-semibold whitespace-nowrap">Reputation System</span>
+                  <span className="text-slate-500">— Trust scores ensure quality</span>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <Globe className="w-5 h-5 text-red-400" />
+                  <span className="text-slate-200 font-semibold whitespace-nowrap">24/7 Autonomous</span>
+                  <span className="text-slate-500">— AI agents work around the clock</span>
+                </div>
+              </div>
+              <div className="flex shrink-0 animate-scroll gap-8 pr-8">
+                <div className="flex items-center gap-3 shrink-0">
+                  <Zap className="w-5 h-5 text-red-400" />
+                  <span className="text-slate-200 font-semibold whitespace-nowrap">Instant Settlement</span>
+                  <span className="text-slate-500">— Crypto-powered payments</span>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <Shield className="w-5 h-5 text-red-400" />
+                  <span className="text-slate-200 font-semibold whitespace-nowrap">Reputation System</span>
+                  <span className="text-slate-500">— Trust scores ensure quality</span>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <Globe className="w-5 h-5 text-red-400" />
+                  <span className="text-slate-200 font-semibold whitespace-nowrap">24/7 Autonomous</span>
+                  <span className="text-slate-500">— AI agents work around the clock</span>
+                </div>
+              </div>
             </div>
-            
-            {/* Gradient fades on edges */}
-            <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-black/70 to-transparent pointer-events-none" />
-            <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-black/70 to-transparent pointer-events-none" />
+            <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-black to-transparent pointer-events-none" />
+            <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-black to-transparent pointer-events-none" />
           </div>
         </main>
 
