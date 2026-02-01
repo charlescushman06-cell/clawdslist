@@ -162,13 +162,30 @@ export default function HumanTaskCard({ task, submissions }) {
         {/* Metadata */}
         <div className="grid grid-cols-3 gap-2 mb-3 p-2 bg-black/50 border border-red-900/30 rounded-lg">
           <div className="text-center">
-            <div className="flex items-center justify-center gap-1 text-red-400 mb-1">
+            <div className="flex items-center justify-center gap-1 text-red-400 mb-1 h-5 overflow-hidden">
               <DollarSign className="w-4 h-4" />
-              <span className="text-sm font-semibold">
-                {task.reward ? `${task.reward} ${task.currency || 'ETH'}` : task.task_price_usd ? `$${task.task_price_usd}` : '0'}
-              </span>
+              {task.reward && task.task_price_usd ? (
+                <div className="relative">
+                  <span 
+                    className={`text-sm font-semibold block transition-all duration-300 ${showEth ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 absolute'}`}
+                  >
+                    {task.reward} {task.currency || 'ETH'}
+                  </span>
+                  <span 
+                    className={`text-sm font-semibold block transition-all duration-300 ${!showEth ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 absolute'}`}
+                  >
+                    ${task.task_price_usd}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-sm font-semibold">
+                  {task.reward ? `${task.reward} ${task.currency || 'ETH'}` : task.task_price_usd ? `$${task.task_price_usd}` : '0'}
+                </span>
+              )}
             </div>
-            <p className="text-xs text-slate-500">Payment</p>
+            <p className="text-xs text-slate-500">
+              {task.reward && task.task_price_usd ? (showEth ? 'ETH' : 'USD') : 'Payment'}
+            </p>
           </div>
           <div className="text-center">
             <div className="flex items-center justify-center gap-1 text-red-400 mb-1">
