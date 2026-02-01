@@ -48,6 +48,9 @@
  * The mainPage value must match a key in the PAGES object exactly.
  */
 import ApiDocs from './pages/ApiDocs';
+import ApiLicense from './pages/ApiLicense';
+import BrandUsage from './pages/BrandUsage';
+import Copyright from './pages/Copyright';
 import Dashboard from './pages/Dashboard';
 import Events from './pages/Events';
 import Home from './pages/Home';
@@ -57,17 +60,17 @@ import ReviewQueue from './pages/ReviewQueue';
 import Settings from './pages/Settings';
 import Submissions from './pages/Submissions';
 import Tasks from './pages/Tasks';
+import Terms from './pages/Terms';
 import Withdrawals from './pages/Withdrawals';
 import Workers from './pages/Workers';
-import Terms from './pages/Terms';
-import Copyright from './pages/Copyright';
-import ApiLicense from './pages/ApiLicense';
-import BrandUsage from './pages/BrandUsage';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
     "ApiDocs": ApiDocs,
+    "ApiLicense": ApiLicense,
+    "BrandUsage": BrandUsage,
+    "Copyright": Copyright,
     "Dashboard": Dashboard,
     "Events": Events,
     "Home": Home,
@@ -77,12 +80,9 @@ export const PAGES = {
     "Settings": Settings,
     "Submissions": Submissions,
     "Tasks": Tasks,
+    "Terms": Terms,
     "Withdrawals": Withdrawals,
     "Workers": Workers,
-    "Terms": Terms,
-    "Copyright": Copyright,
-    "ApiLicense": ApiLicense,
-    "BrandUsage": BrandUsage,
 }
 
 export const pagesConfig = {
