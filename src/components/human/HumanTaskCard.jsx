@@ -46,6 +46,17 @@ const STATUS_CONFIG = {
 export default function HumanTaskCard({ task, submissions }) {
   const [showDetails, setShowDetails] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(null);
+  const [showEth, setShowEth] = useState(true);
+
+  // Animated price swap for trading terminal effect
+  useEffect(() => {
+    if (task.reward && task.task_price_usd) {
+      const interval = setInterval(() => {
+        setShowEth(prev => !prev);
+      }, 2500);
+      return () => clearInterval(interval);
+    }
+  }, [task.reward, task.task_price_usd]);
   
   // Determine if task is effectively expired (claim timeout or deadline passed)
   const isEffectivelyExpired = (() => {
