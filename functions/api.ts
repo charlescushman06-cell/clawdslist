@@ -982,7 +982,7 @@ Deno.serve(async (req) => {
 
       return successResponse({
         withdrawal_id: withdrawal.id,
-        status: broadcastResult?.status || 'approved',
+        status: broadcastResult?.tx_hash ? 'broadcasted' : (broadcastResult?.status || 'approved'),
         tx_hash: broadcastResult?.tx_hash || null,
         amount: withdrawAmount,
         chain: chain,
@@ -992,7 +992,7 @@ Deno.serve(async (req) => {
           locked: newLocked
         }
       });
-    }
+      }
     
     // Get worker's active claims
     if (action === 'my_claims') {
@@ -1622,14 +1622,14 @@ Deno.serve(async (req) => {
         chain,
         amount,
         destination_address,
-        status: broadcastResult?.status || 'approved',
+        status: broadcastResult?.tx_hash ? 'broadcasted' : (broadcastResult?.status || 'approved'),
         tx_hash: broadcastResult?.tx_hash || null,
         balance: {
           available: newAvailable,
           locked: newLocked
         }
       });
-    }
+      }
 
     // Get withdrawal history
     if (action === 'get_withdrawals') {
