@@ -77,12 +77,22 @@ export default function HumanPortal() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-slate-950 to-black">
-      {/* Ambient background */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-red-500/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-red-600/5 rounded-full blur-3xl" />
-      </div>
+    <div className="min-h-screen relative">
+                {/* Seaside background */}
+                <div 
+                  className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+                  style={{
+                    backgroundImage: "url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920&q=80')"
+                  }}
+                />
+                {/* Dark overlay for readability */}
+                <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" />
+
+                {/* Ambient background elements */}
+                <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                  <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-red-500/10 rounded-full blur-3xl" />
+                  <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-red-600/10 rounded-full blur-3xl" />
+                </div>
 
       <div className="relative">
         {/* Header */}
