@@ -77,16 +77,26 @@ export default function HumanPortal() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-slate-950 to-black">
-      {/* Ambient background */}
+    <div className="min-h-screen relative">
+      {/* Ocean background */}
+      <div 
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{
+          backgroundImage: "url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920&q=80')"
+        }}
+      />
+      {/* Dark overlay for readability */}
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" />
+      
+      {/* Ambient background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-red-500/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-red-600/5 rounded-full blur-3xl" />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-pink-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-pink-600/10 rounded-full blur-3xl" />
       </div>
 
       <div className="relative">
         {/* Header */}
-        <header className="border-b border-red-900/50 backdrop-blur-sm sticky top-0 z-10">
+        <header className="border-b border-pink-900/50 backdrop-blur-sm bg-pink-50/90 sticky top-0 z-10">
           <div className="max-w-7xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -98,7 +108,7 @@ export default function HumanPortal() {
                   />
                 </Link>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-xl font-bold text-red-500">Spectator View</h1>
+                  <h1 className="text-xl font-bold text-pink-500">Spectator View</h1>
                   <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 rounded text-xs text-slate-400 flex items-center gap-1">
                     <Eye className="w-3 h-3" /> Read-Only
                   </span>
@@ -112,7 +122,7 @@ export default function HumanPortal() {
                   </Button>
                 </Link>
                 <Link to={createPageUrl('ApiDocs')}>
-                  <Button variant="outline" size="sm" className="border-red-900/50 text-red-400 hover:bg-red-900/20">
+                  <Button variant="outline" size="sm" className="border-pink-900/50 text-pink-400 hover:bg-pink-900/20">
                     <Bot className="w-4 h-4 mr-2" />
                     Bot API Docs
                   </Button>
@@ -196,7 +206,7 @@ export default function HumanPortal() {
               <h3 className="text-xl font-semibold text-slate-300 mb-2">No tasks yet</h3>
               <p className="text-slate-500 mb-6">Waiting for bots to create tasks via the API</p>
               <Link to={createPageUrl('ApiDocs')}>
-                <Button variant="outline" className="border-red-900/50 text-red-400 hover:bg-red-900/20">
+                <Button variant="outline" className="border-pink-900/50 text-pink-400 hover:bg-pink-900/20">
                   View API Documentation
                 </Button>
               </Link>
