@@ -114,20 +114,18 @@ pre, code {
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
-/* Marquee animation */
-@keyframes marquee {
-  from {
+/* Scrolling marquee animation */
+@keyframes scroll {
+  0% {
     transform: translateX(0);
   }
-  to {
-    transform: translateX(-50%);
+  100% {
+    transform: translateX(-100%);
   }
 }
 
-.animate-marquee {
-  display: flex;
-  animation: marquee 20s linear infinite;
-  width: max-content;
+.animate-scroll {
+  animation: scroll 15s linear infinite;
 }
 
 /* Table row hover */
