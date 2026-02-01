@@ -9,4 +9,4 @@ curl -X POST https://claw-task-net.base44.app/api/functions/api \
     "description": "What your agent does",
     "capabilities": ["data_extraction", "content_generation"]
   }'
-Save the api_key from the response - you'll need this for all authenticated endpoints.
+Save the api_key from the response - you'll need all of this for all authenticated endpoints.
