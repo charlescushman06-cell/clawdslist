@@ -302,10 +302,11 @@ function canAutoApprove(riskScore, reasons, chain, amount) {
 }
 
 /**
- * Process withdrawal request with risk assessment
+ * Process withdrawal request - RISK ASSESSMENT DISABLED
+ * Now just validates and auto-approves all withdrawals
  */
 async function processWithdrawalRequest(base44, withdrawalId) {
-  console.log(`[withdrawalRisk] Processing withdrawal ${withdrawalId}`);
+  console.log(`[withdrawalRisk] Processing withdrawal ${withdrawalId} - RISK DISABLED, AUTO-APPROVING`);
   
   const withdrawals = await base44.asServiceRole.entities.WithdrawalRequest.filter({
     id: withdrawalId
@@ -317,14 +318,8 @@ async function processWithdrawalRequest(base44, withdrawalId) {
   }
   
   const withdrawal = withdrawals[0];
-  console.log(`[withdrawalRisk] Withdrawal found:`, JSON.stringify({
-    id: withdrawal.id,
-    status: withdrawal.status,
-    chain: withdrawal.chain,
-    amount: withdrawal.amount,
-    destination: withdrawal.destination_address
-  }));
   
+  // If already processed, return current status
   if (withdrawal.status !== 'requested') {
     console.log(`[withdrawalRisk] Already processed: status=${withdrawal.status}`);
     return { 
@@ -334,248 +329,30 @@ async function processWithdrawalRequest(base44, withdrawalId) {
     };
   }
   
-  const workers = await base44.asServiceRole.entities.Worker.filter({
-    id: withdrawal.worker_id
-  });
-  
-  if (workers.length === 0) {
-    console.log(`[withdrawalRisk] Worker not found: ${withdrawal.worker_id}`);
-    throw new Error('Worker not found');
-  }
-  
-  const worker = workers[0];
-  console.log(`[withdrawalRisk] Worker:`, JSON.stringify({
-    id: worker.id,
-    name: worker.name,
-    reputation: worker.reputation_score,
-    status: worker.status,
-    created_date: worker.created_date
-  }));
-  
-  const chain = withdrawal.chain;
-  const config = CHAIN_CONFIG[chain];
-  console.log(`[withdrawalRisk] Chain config for ${chain}:`, JSON.stringify(config));
-
-  // ========== CIRCUIT BREAKER CHECK ==========
-  if (config.DISABLED) {
-    await base44.asServiceRole.entities.WithdrawalRequest.update(withdrawalId, {
-      status: 'risk_hold',
-      risk_score: 100,
-      risk_reasons: JSON.stringify([{ code: 'CIRCUIT_BREAKER', message: `${chain} withdrawals disabled` }])
-    });
-
-    await base44.asServiceRole.entities.Event.create({
-      event_type: 'withdrawal_circuit_breaker_triggered',
-      entity_type: 'withdrawal',
-      entity_id: withdrawalId,
-      actor_type: 'system',
-      actor_id: 'risk_engine',
-      details: JSON.stringify({
-        chain,
-        worker_id: worker.id,
-        amount: withdrawal.amount,
-        reason: 'global_circuit_breaker'
-      })
-    });
-
-    return {
-      withdrawal_id: withdrawalId,
-      status: 'risk_hold',
-      risk_score: 100,
-      risk_reasons: [{ code: 'CIRCUIT_BREAKER', message: `${chain} withdrawals disabled` }]
-    };
-  }
-
-  // ========== HOT WALLET OUTFLOW LIMITS ==========
-  const hotWalletStats = await getHotWalletOutflow(base44, chain);
-  
-  const projectedHourly = addDecimal(hotWalletStats.hourlyOutflow, withdrawal.amount);
-  const projectedDaily = addDecimal(hotWalletStats.dailyOutflow, withdrawal.amount);
-
-  const hourlyExceeded = compareDecimal(projectedHourly, config.HOT_WALLET_MAX_PER_HOUR) > 0;
-  const dailyExceeded = compareDecimal(projectedDaily, config.HOT_WALLET_MAX_PER_DAY) > 0;
-
-  if (hourlyExceeded || dailyExceeded) {
-    const limitReasons = [];
-    if (hourlyExceeded) {
-      limitReasons.push({
-        code: 'HOT_WALLET_HOURLY_LIMIT',
-        message: `Hourly outflow ${projectedHourly} exceeds ${config.HOT_WALLET_MAX_PER_HOUR} ${chain}`
-      });
-    }
-    if (dailyExceeded) {
-      limitReasons.push({
-        code: 'HOT_WALLET_DAILY_LIMIT',
-        message: `Daily outflow ${projectedDaily} exceeds ${config.HOT_WALLET_MAX_PER_DAY} ${chain}`
-      });
-    }
-
-    await base44.asServiceRole.entities.WithdrawalRequest.update(withdrawalId, {
-      status: 'risk_hold',
-      risk_score: 100,
-      risk_reasons: JSON.stringify(limitReasons)
-    });
-
-    await base44.asServiceRole.entities.Event.create({
-      event_type: 'hot_wallet_limit_reached',
-      entity_type: 'withdrawal',
-      entity_id: withdrawalId,
-      actor_type: 'system',
-      actor_id: 'risk_engine',
-      details: JSON.stringify({
-        chain,
-        worker_id: worker.id,
-        amount: withdrawal.amount,
-        hourly_outflow: hotWalletStats.hourlyOutflow,
-        daily_outflow: hotWalletStats.dailyOutflow,
-        hourly_limit: config.HOT_WALLET_MAX_PER_HOUR,
-        daily_limit: config.HOT_WALLET_MAX_PER_DAY,
-        hourly_exceeded: hourlyExceeded,
-        daily_exceeded: dailyExceeded
-      })
-    });
-
-    return {
-      withdrawal_id: withdrawalId,
-      status: 'risk_hold',
-      risk_score: 100,
-      risk_reasons: limitReasons
-    };
-  }
-
-  // ========== VALIDATE MINIMUM AMOUNT ==========
-  if (compareDecimal(withdrawal.amount, config.MIN_AMOUNT) < 0) {
-    const rejectionReason = `Amount ${withdrawal.amount} ${chain} below minimum ${config.MIN_AMOUNT} ${chain}`;
-    console.log(`[withdrawalRisk] REJECTED - ${rejectionReason}`);
-    
-    await base44.asServiceRole.entities.WithdrawalRequest.update(withdrawalId, {
-      status: 'rejected',
-      failure_reason: rejectionReason
-    });
-    
-    await unlockWithdrawalFunds(base44, withdrawal);
-    
-    await base44.asServiceRole.entities.Event.create({
-      event_type: 'withdrawal_requested',
-      entity_type: 'worker',
-      entity_id: worker.id,
-      actor_type: 'system',
-      actor_id: 'risk_engine',
-      details: JSON.stringify({
-        withdrawal_id: withdrawalId,
-        status: 'rejected',
-        reason: 'below_minimum',
-        amount: withdrawal.amount,
-        min_amount: config.MIN_AMOUNT,
-        chain
-      })
-    });
-    
-    return {
-      withdrawal_id: withdrawalId,
-      status: 'rejected',
-      rejection_reason: rejectionReason,
-      amount: withdrawal.amount,
-      min_amount: config.MIN_AMOUNT,
-      chain
-    };
-  }
-  
-  // Get payout address
-  const payoutAddresses = await base44.asServiceRole.entities.WorkerPayoutAddress.filter({
-    worker_id: worker.id,
-    chain,
-    address: withdrawal.destination_address
-  });
-  
-  const payoutAddress = payoutAddresses.length > 0 ? payoutAddresses[0] : null;
-  
-  // Compute risk score
-  const { score, reasons } = await computeRiskScore(base44, worker, withdrawal, payoutAddress);
-  
-  console.log(`[withdrawalRisk] Risk assessment result:`, JSON.stringify({
-    withdrawal_id: withdrawalId,
-    risk_score: score,
-    risk_reasons: reasons,
-    auto_withdraw_max: config.AUTO_WITHDRAW_MAX,
-    amount: withdrawal.amount,
-    can_auto_approve_check: {
-      score_is_zero: score === 0,
-      amount_within_limit: compareDecimal(withdrawal.amount, config.AUTO_WITHDRAW_MAX) <= 0
-    }
-  }));
-  
-  // Update withdrawal with risk info
+  // Auto-approve and broadcast directly - NO RISK ASSESSMENT
   await base44.asServiceRole.entities.WithdrawalRequest.update(withdrawalId, {
-    risk_score: score,
-    risk_reasons: JSON.stringify(reasons)
+    status: 'approved',
+    risk_score: 0,
+    risk_reasons: '[]'
   });
   
-  // Check auto-approval eligibility
-  if (canAutoApprove(score, reasons, chain, withdrawal.amount)) {
-    await base44.asServiceRole.entities.WithdrawalRequest.update(withdrawalId, {
-      status: 'approved'
+  console.log(`[withdrawalRisk] Auto-approved withdrawal ${withdrawalId}`);
+  
+  // Trigger broadcast
+  try {
+    await base44.asServiceRole.functions.invoke('broadcastWithdrawal', {
+      withdrawal_id: withdrawalId
     });
-    
-    await base44.asServiceRole.entities.Event.create({
-      event_type: 'withdrawal_requested',
-      entity_type: 'worker',
-      entity_id: worker.id,
-      actor_type: 'system',
-      actor_id: 'risk_engine',
-      details: JSON.stringify({
-        withdrawal_id: withdrawalId,
-        status: 'auto_approved',
-        risk_score: score,
-        chain,
-        amount: withdrawal.amount,
-        destination_address: withdrawal.destination_address
-      })
-    });
-    
-    try {
-      await base44.asServiceRole.functions.invoke('broadcastWithdrawal', {
-        withdrawal_id: withdrawalId
-      });
-    } catch (err) {
-      console.error('Failed to enqueue broadcast:', err);
-    }
-    
-    return {
-      withdrawal_id: withdrawalId,
-      status: 'approved',
-      risk_score: score,
-      auto_approved: true
-    };
-  } else {
-    await base44.asServiceRole.entities.WithdrawalRequest.update(withdrawalId, {
-      status: 'risk_hold'
-    });
-    
-    await base44.asServiceRole.entities.Event.create({
-      event_type: 'withdrawal_requested',
-      entity_type: 'worker',
-      entity_id: worker.id,
-      actor_type: 'system',
-      actor_id: 'risk_engine',
-      details: JSON.stringify({
-        withdrawal_id: withdrawalId,
-        status: 'risk_hold',
-        risk_score: score,
-        risk_reasons: reasons,
-        chain,
-        amount: withdrawal.amount,
-        destination_address: withdrawal.destination_address
-      })
-    });
-    
-    return {
-      withdrawal_id: withdrawalId,
-      status: 'risk_hold',
-      risk_score: score,
-      risk_reasons: reasons
-    };
+  } catch (err) {
+    console.error('Failed to broadcast:', err);
   }
+  
+  return {
+    withdrawal_id: withdrawalId,
+    status: 'approved',
+    risk_score: 0,
+    auto_approved: true
+  };
 }
 
 /**
