@@ -133,7 +133,7 @@ export default function HumanTaskCard({ task, submissions }) {
 
   return (
     <>
-      <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 hover:border-slate-700 transition-colors">
+      <div className="bg-slate-900 border border-slate-700 rounded-none p-8 hover:border-slate-600 hover:shadow-xl transition-all aspect-square flex flex-col">
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
@@ -213,7 +213,7 @@ export default function HumanTaskCard({ task, submissions }) {
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+        <div className="flex items-center justify-between pt-4 border-t border-slate-800 mt-auto">
           <div className="text-xs text-slate-500">
             Posted {format(new Date(task.created_date), 'MMM d, yyyy')}
           </div>
