@@ -151,6 +151,9 @@ async function broadcastEthTransaction(amount, destinationAddress) {
   // Derive private key from hot wallet mnemonic (index 0)
   const privateKey = await deriveEthPrivateKey(HOT_WALLET_MNEMONIC_ETH, 0);
 
+  // Format amount - Tatum expects string with max 18 decimals, trim trailing zeros
+  const formattedAmount = parseFloat(amount).toFixed(18).replace(/\.?0+$/, '');
+
   // Use Tatum's transfer endpoint with fromPrivateKey
   const response = await fetch(`https://api.tatum.io/v3/${tatumChain}/transaction`, {
     method: 'POST',
@@ -160,7 +163,7 @@ async function broadcastEthTransaction(amount, destinationAddress) {
     },
     body: JSON.stringify({
       to: destinationAddress,
-      amount: amount,
+      amount: formattedAmount,
       currency: 'ETH',
       fromPrivateKey: privateKey
     })
@@ -170,13 +173,17 @@ async function broadcastEthTransaction(amount, destinationAddress) {
     const errData = await response.json().catch(() => ({}));
     console.error('[broadcastEthTransaction] Tatum error:', JSON.stringify({
       status: response.status,
+      statusText: response.statusText,
       error: errData,
+      data: errData.data || null,
       request: {
         to: destinationAddress,
-        amount: amount
+        amount: formattedAmount
       }
     }));
-    throw new Error(errData.message || `Tatum ETH broadcast failed: ${response.status}`);
+    // Include full error data in message
+    const errorMsg = errData.message || errData.msg || (errData.data ? JSON.stringify(errData.data) : null) || `Tatum ETH broadcast failed: ${response.status}`;
+    throw new Error(errorMsg);
   }
 
   const data = await response.json();
