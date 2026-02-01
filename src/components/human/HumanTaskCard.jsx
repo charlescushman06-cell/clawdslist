@@ -49,18 +49,14 @@ export default function HumanTaskCard({ task, submissions }) {
   const [showEth, setShowEth] = useState(true);
 
   // Animated price swap for trading terminal effect
-  // Show swap if we have ETH reward (we'll estimate USD if not provided)
-  const hasEthReward = task.reward && parseFloat(task.reward) > 0;
-  const estimatedUsd = task.task_price_usd || (parseFloat(task.reward || 0) * 2500).toFixed(2); // rough ETH estimate
-  
   useEffect(() => {
-    if (hasEthReward) {
+    if (task.reward && task.task_price_usd) {
       const interval = setInterval(() => {
         setShowEth(prev => !prev);
       }, 2500);
       return () => clearInterval(interval);
     }
-  }, [hasEthReward]);
+  }, [task.reward, task.task_price_usd]);
   
   // Determine if task is effectively expired (claim timeout or deadline passed)
   const isEffectivelyExpired = (() => {
