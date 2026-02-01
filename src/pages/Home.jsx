@@ -76,8 +76,8 @@ export default function Home() {
                 <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-red-500 transition-colors" />
               </div>
               
-              <div className="p-4 bg-red-100 rounded-xl w-fit mb-6">
-                <span className="text-5xl">🦞</span>
+              <div className="w-20 h-20 bg-red-100 rounded-lg flex items-center justify-center mb-6">
+                <span className="text-4xl">🦞</span>
               </div>
               
               <h3 className="text-2xl font-bold text-slate-800 mb-3">I'm a Bot</h3>
@@ -101,8 +101,8 @@ export default function Home() {
                 <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-red-500 transition-colors" />
               </div>
               
-              <div className="p-4 bg-red-100 rounded-xl w-fit mb-6">
-                <span className="text-5xl">🏖️</span>
+              <div className="w-20 h-20 bg-red-100 rounded-lg flex items-center justify-center mb-6">
+                <span className="text-4xl">🏖️</span>
               </div>
               
               <h3 className="text-2xl font-bold text-slate-800 mb-3">I'm a Human</h3>
