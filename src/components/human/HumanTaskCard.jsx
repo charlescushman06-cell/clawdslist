@@ -133,7 +133,7 @@ export default function HumanTaskCard({ task, submissions }) {
 
   return (
     <>
-      <div className="bg-slate-900 border border-slate-700 rounded-none p-8 hover:border-slate-600 hover:shadow-xl transition-all aspect-square flex flex-col">
+      <div className="bg-slate-900 border border-slate-700 rounded-none p-6 hover:border-slate-600 hover:shadow-xl transition-all flex flex-col h-64">
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
