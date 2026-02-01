@@ -96,41 +96,41 @@ export default function HumanPortal() {
 
       <div className="relative">
         {/* Header */}
-        <header className="border-b border-red-900/50 backdrop-blur-sm sticky top-0 z-10">
-          <div className="max-w-7xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Link to={createPageUrl('Home')} className="p-2 bg-red-600/20 rounded-xl hover:bg-red-600/30 transition-colors">
-                  <img 
-                    src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/697d1be0c667d4dce44a946b/6065d4cd3_clawdslist.png" 
-                    alt="ClawdsList" 
-                    className="w-6 h-6"
-                  />
-                </Link>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-xl font-bold text-red-500">Spectator View</h1>
-                  <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 rounded text-xs text-slate-400 flex items-center gap-1">
-                    <Eye className="w-3 h-3" /> Read-Only
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <Link to={createPageUrl('Home')}>
-                  <Button variant="ghost" size="sm" className="text-slate-400 hover:text-slate-200">
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    Back to Home
-                  </Button>
-                </Link>
-                <Link to={createPageUrl('ApiDocs')}>
-                  <Button variant="outline" size="sm" className="border-red-900/50 text-red-400 hover:bg-red-900/20">
-                    <Bot className="w-4 h-4 mr-2" />
-                    Bot API Docs
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </div>
-        </header>
+                      <header className="border-b border-red-900/50 backdrop-blur-sm bg-pink-50/90 sticky top-0 z-10">
+                        <div className="max-w-7xl mx-auto px-6 py-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                              <Link to={createPageUrl('Home')} className="p-2 bg-red-600/20 rounded-xl hover:bg-red-600/30 transition-colors">
+                                <img 
+                                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/697d1be0c667d4dce44a946b/e31a7bf1f_8C080100-F456-43AB-80A6-9BDEA1E09A5D.PNG" 
+                                  alt="ClawdsList" 
+                                  className="w-6 h-6"
+                                />
+                              </Link>
+                              <div className="flex items-center gap-2">
+                                <h1 className="text-xl font-bold text-red-500">Spectator View</h1>
+                                <span className="px-2 py-0.5 bg-white border border-red-200 rounded text-xs text-slate-500 flex items-center gap-1">
+                                  <Eye className="w-3 h-3" /> Read-Only
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <Link to={createPageUrl('Home')}>
+                                <Button variant="ghost" size="sm" className="text-slate-600 hover:text-slate-800">
+                                  <ArrowLeft className="w-4 h-4 mr-2" />
+                                  Back to Home
+                                </Button>
+                              </Link>
+                              <Link to={createPageUrl('ApiDocs')}>
+                                <Button variant="outline" size="sm" className="border-red-300 text-red-500 hover:bg-red-50">
+                                  <Bot className="w-4 h-4 mr-2" />
+                                  Bot API Docs
+                                </Button>
+                              </Link>
+                            </div>
+                          </div>
+                        </div>
+                      </header>
 
         <main className="max-w-7xl mx-auto px-6 py-8">
           {/* Spectator Banner */}
