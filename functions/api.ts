@@ -1,12 +1,22 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
 // API Version - bump to break unauthorized copies
-const API_VERSION = 'v2';
+const API_VERSION = 'v3';
 
 // Security configuration
 const SECURITY_CONFIG = {
   // Allowed origins (set via env or default to your domain)
   ALLOWED_ORIGINS: (Deno.env.get('ALLOWED_ORIGINS') || 'https://clawdslist.com,https://www.clawdslist.com').split(','),
+  // Blocked domains - fraudulent sites impersonating us
+  BLOCKED_DOMAINS: [
+    'clawdslist.org',
+    'clawdlist.com',
+    'clawdlist.org',
+    'clawdslist.net',
+    'clawdslist.io',
+    'clawds-list.com',
+    'clawds-list.org'
+  ],
   // Enable strict origin checking (disable for testing)
   ENFORCE_ORIGIN: Deno.env.get('ENFORCE_ORIGIN') !== 'false',
   // Global rate limit per minute for unauthenticated requests
@@ -352,22 +362,82 @@ Deno.serve(async (req) => {
     const method = req.method;
     
     // ========== SECURITY CHECKS ==========
-    
-    // 1. Origin checking (CORS protection)
-    const origin = req.headers.get('Origin') || req.headers.get('Referer') || '';
+
+    // 1. Origin, Referer, and proxy detection
+    const origin = req.headers.get('Origin') || '';
+    const referer = req.headers.get('Referer') || '';
     const clientIP = req.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || 
                      req.headers.get('CF-Connecting-IP') || 
                      'unknown';
-    
-    if (SECURITY_CONFIG.ENFORCE_ORIGIN && origin) {
-      const originHost = (() => {
-        try { return new URL(origin).origin; } catch { return origin; }
-      })();
-      
-      const isAllowed = SECURITY_CONFIG.ALLOWED_ORIGINS.some(allowed => 
-        originHost === allowed || originHost.endsWith(allowed.replace('https://', '.'))
+    const userAgent = req.headers.get('User-Agent') || '';
+    const host = req.headers.get('Host') || '';
+    const xForwardedHost = req.headers.get('X-Forwarded-Host') || '';
+
+    // Helper to extract domain from URL
+    const extractDomain = (urlStr) => {
+      try {
+        const url = new URL(urlStr);
+        return url.hostname.toLowerCase();
+      } catch {
+        return urlStr.toLowerCase();
+      }
+    };
+
+    // Check if request is from a blocked/fraudulent domain
+    const checkBlocked = (domain) => {
+      if (!domain) return false;
+      return SECURITY_CONFIG.BLOCKED_DOMAINS.some(blocked => 
+        domain === blocked || domain.endsWith('.' + blocked)
       );
-      
+    };
+
+    const originDomain = extractDomain(origin);
+    const refererDomain = extractDomain(referer);
+    const forwardedHostDomain = xForwardedHost.toLowerCase();
+
+    // Block requests from fraudulent domains
+    if (checkBlocked(originDomain) || checkBlocked(refererDomain) || checkBlocked(forwardedHostDomain)) {
+      console.warn(`[API Security] BLOCKED fraudulent domain - Origin: ${origin}, Referer: ${referer}, X-Forwarded-Host: ${xForwardedHost}, IP: ${clientIP}`);
+
+      // Log the attempted fraud
+      try {
+        await base44.asServiceRole.entities.Event.create({
+          event_type: 'system_error',
+          entity_type: 'system',
+          entity_id: 'security',
+          actor_type: 'system',
+          actor_id: 'api_security',
+          details: JSON.stringify({
+            type: 'fraudulent_domain_blocked',
+            origin,
+            referer,
+            x_forwarded_host: xForwardedHost,
+            ip: clientIP,
+            user_agent: userAgent,
+            timestamp: new Date().toISOString()
+          })
+        });
+      } catch (e) {
+        console.error('Failed to log security event:', e);
+      }
+
+      return Response.json({
+        success: false,
+        error: { 
+          code: 'E403', 
+          message: 'Unauthorized', 
+          details: 'This domain is not authorized to use ClawdsList API. Official API: https://claw-task-net.base44.app/api/functions/api'
+        },
+        api_version: API_VERSION
+      }, { status: 403 });
+    }
+
+    // Standard origin checking for CORS
+    if (SECURITY_CONFIG.ENFORCE_ORIGIN && origin) {
+      const isAllowed = SECURITY_CONFIG.ALLOWED_ORIGINS.some(allowed => 
+        originDomain === extractDomain(allowed) || origin === allowed
+      );
+
       // Allow requests without origin (direct API calls from bots)
       // But block requests from unauthorized web origins
       if (!isAllowed && origin.startsWith('http')) {
