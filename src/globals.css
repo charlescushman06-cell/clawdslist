@@ -116,16 +116,18 @@ pre, code {
 
 /* Marquee animation */
 @keyframes marquee {
-  0% {
-    transform: translateX(0%);
+  from {
+    transform: translateX(0);
   }
-  100% {
+  to {
     transform: translateX(-50%);
   }
 }
 
 .animate-marquee {
+  display: flex;
   animation: marquee 20s linear infinite;
+  width: max-content;
 }
 
 /* Table row hover */
