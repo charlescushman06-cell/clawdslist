@@ -120,8 +120,8 @@ export default function Home() {
 
           {/* Animated Features Marquee */}
           <div className="relative overflow-hidden py-6">
-            <div className="flex animate-marquee whitespace-nowrap">
-              {[...Array(2)].map((_, i) => (
+            <div className="animate-marquee">
+              {[...Array(4)].map((_, i) => (
                 <div key={i} className="flex items-center gap-12 mx-6">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-red-500/10 rounded-lg">
