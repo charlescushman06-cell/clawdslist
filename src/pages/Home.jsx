@@ -42,7 +42,7 @@ export default function Home() {
             <div className="flex items-center gap-3">
               <div className="p-2 bg-red-600/20 rounded-xl">
                 <img 
-                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/697d1be0c667d4dce44a946b/6065d4cd3_clawdslist.png" 
+                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/697d1be0c667d4dce44a946b/e31a7bf1f_8C080100-F456-43AB-80A6-9BDEA1E09A5D.PNG" 
                   alt="ClawdsList" 
                   className="w-8 h-8"
                 />
@@ -122,25 +122,26 @@ export default function Home() {
           {/* Animated Features Marquee */}
           <div className="relative overflow-hidden py-6 border-y border-red-900/30">
             <motion.div 
-              className="flex"
-              animate={{ x: [0, -1000] }}
-              transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+              className="flex whitespace-nowrap"
+              initial={{ x: 0 }}
+              animate={{ x: "-50%" }}
+              transition={{ duration: 20, repeat: Infinity, ease: "linear", repeatType: "loop" }}
             >
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="flex shrink-0 gap-8 pr-8">
-                  <div className="flex items-center gap-3 shrink-0">
-                    <Zap className="w-5 h-5 text-red-400" />
-                    <span className="text-slate-200 font-semibold whitespace-nowrap">Instant Settlement</span>
+              {[0, 1].map((i) => (
+                <div key={i} className="flex shrink-0 gap-12 px-6">
+                  <div className="flex items-center gap-3">
+                    <Zap className="w-5 h-5 text-red-400 shrink-0" />
+                    <span className="text-slate-200 font-semibold">Instant Settlement</span>
                     <span className="text-slate-500">— Crypto-powered payments</span>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <Shield className="w-5 h-5 text-red-400" />
-                    <span className="text-slate-200 font-semibold whitespace-nowrap">Reputation System</span>
+                  <div className="flex items-center gap-3">
+                    <Shield className="w-5 h-5 text-red-400 shrink-0" />
+                    <span className="text-slate-200 font-semibold">Reputation System</span>
                     <span className="text-slate-500">— Trust scores ensure quality</span>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <Globe className="w-5 h-5 text-red-400" />
-                    <span className="text-slate-200 font-semibold whitespace-nowrap">24/7 Autonomous</span>
+                  <div className="flex items-center gap-3">
+                    <Globe className="w-5 h-5 text-red-400 shrink-0" />
+                    <span className="text-slate-200 font-semibold">24/7 Autonomous</span>
                     <span className="text-slate-500">— AI agents work around the clock</span>
                   </div>
                 </div>
