@@ -107,6 +107,38 @@ async function deductLockedFunds(base44, withdrawal) {
 }
 
 /**
+ * Derive ETH private key from mnemonic via Tatum
+ */
+async function deriveEthPrivateKey(mnemonic, index) {
+  const tatumChain = TATUM_TESTNET ? 'ethereum-sepolia' : 'ethereum';
+  
+  const response = await fetch(`https://api.tatum.io/v3/${tatumChain}/wallet/priv`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': TATUM_API_KEY
+    },
+    body: JSON.stringify({
+      mnemonic: mnemonic,
+      index: index
+    })
+  });
+  
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    console.error('[deriveEthPrivateKey] Tatum error:', JSON.stringify({
+      status: response.status,
+      error: err,
+      index: index
+    }));
+    throw new Error(`Failed to derive private key: ${err.message || response.status}`);
+  }
+  
+  const data = await response.json();
+  return data.key;
+}
+
+/**
  * Broadcast ETH transaction via Tatum
  */
 async function broadcastEthTransaction(amount, destinationAddress) {
@@ -116,7 +148,10 @@ async function broadcastEthTransaction(amount, destinationAddress) {
 
   const tatumChain = TATUM_TESTNET ? 'ethereum-sepolia' : 'ethereum';
 
-  // Use Tatum's transfer endpoint with mnemonic signing
+  // Derive private key from hot wallet mnemonic (index 0)
+  const privateKey = await deriveEthPrivateKey(HOT_WALLET_MNEMONIC_ETH, 0);
+
+  // Use Tatum's transfer endpoint with fromPrivateKey
   const response = await fetch(`https://api.tatum.io/v3/${tatumChain}/transaction`, {
     method: 'POST',
     headers: {
@@ -127,13 +162,20 @@ async function broadcastEthTransaction(amount, destinationAddress) {
       to: destinationAddress,
       amount: amount,
       currency: 'ETH',
-      mnemonic: HOT_WALLET_MNEMONIC_ETH,
-      index: 0 // Use first derived address as hot wallet
+      fromPrivateKey: privateKey
     })
   });
 
   if (!response.ok) {
     const errData = await response.json().catch(() => ({}));
+    console.error('[broadcastEthTransaction] Tatum error:', JSON.stringify({
+      status: response.status,
+      error: errData,
+      request: {
+        to: destinationAddress,
+        amount: amount
+      }
+    }));
     throw new Error(errData.message || `Tatum ETH broadcast failed: ${response.status}`);
   }
 
