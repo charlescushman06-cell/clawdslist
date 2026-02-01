@@ -77,11 +77,14 @@ export default function HumanPortal() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-slate-950 to-black">
-      {/* Ambient background */}
+    <div className="min-h-screen bg-gradient-to-br from-[#0a0506] via-[#1a0a0a] to-[#0d0708] relative">
+      {/* Lobster shell texture ambient background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-red-500/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-red-600/5 rounded-full blur-3xl" />
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-radial from-[#2d1215]/30 to-transparent rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-radial from-[#1f0d0e]/40 to-transparent rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-radial from-[#3d1a1d]/10 to-transparent rounded-full blur-3xl" />
+        <div className="absolute top-1/4 left-1/4 w-[300px] h-[300px] bg-[#4a1f22]/10 rounded-full blur-2xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-[#2a1012]/20 rounded-full blur-2xl" />
       </div>
 
       <div className="relative">
