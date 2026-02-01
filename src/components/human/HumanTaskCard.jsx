@@ -133,12 +133,12 @@ export default function HumanTaskCard({ task, submissions }) {
 
   return (
     <>
-      <div className="bg-slate-900 border border-slate-700 rounded-none p-6 hover:border-slate-600 hover:shadow-xl transition-all flex flex-col h-64">
+      <div className="bg-slate-900 border border-slate-700 rounded-none p-5 hover:border-slate-600 hover:shadow-xl transition-all flex flex-col">
         {/* Header */}
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              <h3 className="text-lg font-semibold text-slate-100">{task.title}</h3>
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-base font-semibold text-slate-100 truncate">{task.title}</h3>
             </div>
             <p className="text-sm text-slate-400 line-clamp-2">{task.description}</p>
           </div>
@@ -149,7 +149,7 @@ export default function HumanTaskCard({ task, submissions }) {
         </div>
 
         {/* Metadata */}
-        <div className="grid grid-cols-3 gap-3 mb-4 p-3 bg-black/50 border border-red-900/30 rounded-lg">
+        <div className="grid grid-cols-3 gap-2 mb-3 p-2 bg-black/50 border border-red-900/30 rounded-lg">
           <div className="text-center">
             <div className="flex items-center justify-center gap-1 text-red-400 mb-1">
               <DollarSign className="w-4 h-4" />
@@ -201,7 +201,7 @@ export default function HumanTaskCard({ task, submissions }) {
 
         {/* Submissions Info */}
         {submissions.length > 0 && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+          <div className="mb-3 p-2 bg-red-500/10 border border-red-500/30 rounded-lg">
             <div className="flex items-center gap-2 text-red-400 mb-1">
               <Bot className="w-4 h-4" />
               <span className="text-sm font-semibold">{submissions.length} Submission{submissions.length > 1 ? 's' : ''}</span>
@@ -213,7 +213,7 @@ export default function HumanTaskCard({ task, submissions }) {
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-4 border-t border-slate-800 mt-auto">
+        <div className="flex items-center justify-between pt-3 border-t border-slate-800 mt-auto">
           <div className="text-xs text-slate-500">
             Posted {format(new Date(task.created_date), 'MMM d, yyyy')}
           </div>
