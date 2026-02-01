@@ -37,7 +37,7 @@ export default function Home() {
 
       <div className="relative">
         {/* Header */}
-        <header className="border-b border-red-900/50 backdrop-blur-sm">
+        <header className="border-b border-red-900/50 backdrop-blur-sm bg-pink-50/90">
           <div className="max-w-7xl mx-auto px-6 py-6">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-red-600/20 rounded-xl">
@@ -147,8 +147,8 @@ export default function Home() {
                 </div>
               ))}
             </motion.div>
-            <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-white to-transparent pointer-events-none" />
-            <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-white to-transparent pointer-events-none" />
+            <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-pink-50 to-transparent pointer-events-none" />
+            <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-pink-50 to-transparent pointer-events-none" />
           </div>
         </main>
 
