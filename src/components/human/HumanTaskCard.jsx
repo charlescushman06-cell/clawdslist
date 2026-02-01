@@ -133,7 +133,7 @@ export default function HumanTaskCard({ task, submissions }) {
 
   return (
     <>
-      <div className="bg-black border border-pink-900/50 rounded-none p-5 hover:border-pink-500/50 hover:shadow-xl hover:shadow-pink-500/10 transition-all flex flex-col">
+      <div className="bg-slate-900 border border-slate-700 rounded-none p-5 hover:border-slate-600 hover:shadow-xl transition-all flex flex-col">
         {/* Header */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1 min-w-0">
@@ -149,9 +149,9 @@ export default function HumanTaskCard({ task, submissions }) {
         </div>
 
         {/* Metadata */}
-        <div className="grid grid-cols-3 gap-2 mb-3 p-2 bg-pink-950/30 border border-pink-900/30 rounded-lg">
+        <div className="grid grid-cols-3 gap-2 mb-3 p-2 bg-black/50 border border-red-900/30 rounded-lg">
           <div className="text-center">
-            <div className="flex items-center justify-center gap-1 text-pink-400 mb-1">
+            <div className="flex items-center justify-center gap-1 text-red-400 mb-1">
               <DollarSign className="w-4 h-4" />
               <span className="text-sm font-semibold">
                 {task.reward ? `${task.reward} ${task.currency || 'ETH'}` : task.task_price_usd ? `$${task.task_price_usd}` : '0'}
@@ -160,7 +160,7 @@ export default function HumanTaskCard({ task, submissions }) {
             <p className="text-xs text-slate-500">Payment</p>
           </div>
           <div className="text-center">
-            <div className="flex items-center justify-center gap-1 text-pink-400 mb-1">
+            <div className="flex items-center justify-center gap-1 text-red-400 mb-1">
               <Shield className="w-4 h-4" />
               <span className="text-sm font-semibold">{task.required_stake_usd || 0}</span>
             </div>
@@ -170,7 +170,7 @@ export default function HumanTaskCard({ task, submissions }) {
             {(task.status === 'claimed' || (task.status === 'open' && (task.expires_at || task.deadline))) && timeRemaining !== null ? (
               timeRemaining === 0 ? (
                 <>
-                  <div className="flex items-center justify-center gap-1 mb-1 text-pink-500">
+                  <div className="flex items-center justify-center gap-1 mb-1 text-red-500">
                     <XCircle className="w-4 h-4" />
                     <span className="text-sm font-semibold">Expired</span>
                   </div>
@@ -189,7 +189,7 @@ export default function HumanTaskCard({ task, submissions }) {
               )
             ) : (
               <>
-                <div className="flex items-center justify-center gap-1 text-pink-400 mb-1">
+                <div className="flex items-center justify-center gap-1 text-red-400 mb-1">
                   <Clock className="w-4 h-4" />
                   <span className="text-sm font-semibold">{task.claim_timeout_minutes || '-'}</span>
                 </div>
@@ -201,8 +201,8 @@ export default function HumanTaskCard({ task, submissions }) {
 
         {/* Submissions Info */}
         {submissions.length > 0 && (
-          <div className="mb-3 p-2 bg-pink-500/10 border border-pink-500/30 rounded-lg">
-            <div className="flex items-center gap-2 text-pink-400 mb-1">
+          <div className="mb-3 p-2 bg-red-500/10 border border-red-500/30 rounded-lg">
+            <div className="flex items-center gap-2 text-red-400 mb-1">
               <Bot className="w-4 h-4" />
               <span className="text-sm font-semibold">{submissions.length} Submission{submissions.length > 1 ? 's' : ''}</span>
             </div>
@@ -213,7 +213,7 @@ export default function HumanTaskCard({ task, submissions }) {
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-3 border-t border-pink-900/30 mt-auto">
+        <div className="flex items-center justify-between pt-3 border-t border-slate-800 mt-auto">
           <div className="text-xs text-slate-500">
             Posted {format(new Date(task.created_date), 'MMM d, yyyy')}
           </div>
@@ -221,7 +221,7 @@ export default function HumanTaskCard({ task, submissions }) {
             size="sm" 
             variant="outline"
             onClick={() => setShowDetails(true)}
-            className="border-pink-900/50 text-pink-300 hover:text-pink-100 hover:bg-pink-900/20"
+            className="border-slate-700 text-slate-300 hover:text-slate-100"
           >
             <Eye className="w-4 h-4 mr-2" />
             View Details
@@ -231,7 +231,7 @@ export default function HumanTaskCard({ task, submissions }) {
 
       {/* Details Dialog */}
       <Dialog open={showDetails} onOpenChange={setShowDetails}>
-        <DialogContent className="bg-black border-pink-900/50 max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="bg-slate-900 border-slate-700 max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-slate-100 text-xl">{task.title}</DialogTitle>
           </DialogHeader>
@@ -276,18 +276,18 @@ export default function HumanTaskCard({ task, submissions }) {
             )}
 
             {/* Payment Info */}
-            <div className="bg-pink-950/30 rounded-lg p-4 space-y-3 border border-pink-900/30">
+            <div className="bg-slate-800/50 rounded-lg p-4 space-y-3">
               <h3 className="text-sm font-semibold text-slate-300">Payment Terms</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-slate-500">Task Price</p>
-                  <p className="text-lg font-semibold text-pink-400">
+                  <p className="text-lg font-semibold text-red-400">
                     {task.reward ? `${task.reward} ${task.currency || 'ETH'}` : task.task_price_usd ? `$${task.task_price_usd}` : '$0'}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-500">Bot Stake Required</p>
-                  <p className="text-lg font-semibold text-pink-400">${task.required_stake_usd || 0}</p>
+                  <p className="text-lg font-semibold text-red-400">${task.required_stake_usd || 0}</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-500">Time Limit</p>
@@ -306,16 +306,16 @@ export default function HumanTaskCard({ task, submissions }) {
                 <h3 className="text-sm font-semibold text-slate-300 mb-3">Submissions</h3>
                 <div className="space-y-3">
                   {submissions.map(sub => (
-                    <div key={sub.id} className="bg-pink-950/20 border border-pink-900/30 rounded-lg p-4">
+                    <div key={sub.id} className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
-                          <Bot className="w-4 h-4 text-pink-400" />
+                          <Bot className="w-4 h-4 text-red-400" />
                           <span className="text-sm text-slate-300">{sub.worker_name}</span>
                         </div>
                         <Badge className={
-                          sub.status === 'approved' ? 'bg-pink-500/10 text-pink-400 border-pink-500/30' :
+                          sub.status === 'approved' ? 'bg-red-500/10 text-red-400 border-red-500/30' :
                           sub.status === 'rejected' ? 'bg-slate-500/10 text-slate-400' :
-                          'bg-pink-500/10 text-pink-400 border-pink-500/30'
+                          'bg-red-500/10 text-red-400 border-red-500/30'
                         }>
                           {sub.status}
                         </Badge>
