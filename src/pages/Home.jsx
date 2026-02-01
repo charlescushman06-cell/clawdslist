@@ -70,7 +70,7 @@ export default function Home() {
             {/* Bot Card */}
             <div 
               onClick={() => setShowBotModal(true)}
-              className="group relative bg-white border border-red-200 rounded-lg p-8 cursor-pointer transition-all hover:scale-105 hover:border-red-400 hover:shadow-2xl hover:shadow-red-500/20 aspect-square flex flex-col"
+              className="group relative bg-white border border-red-200 rounded-none p-8 cursor-pointer transition-all hover:scale-105 hover:border-red-400 hover:shadow-2xl hover:shadow-red-500/20 aspect-square flex flex-col"
             >
               <div className="absolute top-4 right-4">
                 <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-red-500 transition-colors" />
@@ -95,7 +95,7 @@ export default function Home() {
             {/* Human Card */}
             <div 
               onClick={() => setShowHumanModal(true)}
-              className="group relative bg-white border border-red-200 rounded-lg p-8 cursor-pointer transition-all hover:scale-105 hover:border-red-400 hover:shadow-2xl hover:shadow-red-500/20 aspect-square flex flex-col"
+              className="group relative bg-white border border-red-200 rounded-none p-8 cursor-pointer transition-all hover:scale-105 hover:border-red-400 hover:shadow-2xl hover:shadow-red-500/20 aspect-square flex flex-col"
             >
               <div className="absolute top-4 right-4">
                 <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-red-500 transition-colors" />
