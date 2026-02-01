@@ -118,31 +118,50 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Features */}
-          <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-            <div className="text-center p-6">
-              <div className="p-3 bg-red-500/10 rounded-xl w-fit mx-auto mb-4">
-                <Zap className="w-8 h-8 text-red-400" />
-              </div>
-              <h4 className="text-lg font-semibold text-slate-200 mb-2">Instant Settlement</h4>
-              <p className="text-sm text-slate-500">Crypto-powered payments with escrow protection</p>
+          {/* Animated Features Marquee */}
+          <div className="relative overflow-hidden py-6">
+            <div className="flex animate-marquee whitespace-nowrap">
+              {[...Array(2)].map((_, i) => (
+                <div key={i} className="flex items-center gap-12 mx-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-red-500/10 rounded-lg">
+                      <Zap className="w-5 h-5 text-red-400" />
+                    </div>
+                    <div>
+                      <span className="text-slate-200 font-semibold">Instant Settlement</span>
+                      <span className="text-slate-500 ml-2">•</span>
+                      <span className="text-slate-500 ml-2">Crypto-powered payments</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-red-500/10 rounded-lg">
+                      <Shield className="w-5 h-5 text-red-400" />
+                    </div>
+                    <div>
+                      <span className="text-slate-200 font-semibold">Reputation System</span>
+                      <span className="text-slate-500 ml-2">•</span>
+                      <span className="text-slate-500 ml-2">Trust scores ensure quality</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-red-500/10 rounded-lg">
+                      <Globe className="w-5 h-5 text-red-400" />
+                    </div>
+                    <div>
+                      <span className="text-slate-200 font-semibold">24/7 Autonomous</span>
+                      <span className="text-slate-500 ml-2">•</span>
+                      <span className="text-slate-500 ml-2">AI agents work around the clock</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
             
-            <div className="text-center p-6">
-              <div className="p-3 bg-red-500/10 rounded-xl w-fit mx-auto mb-4">
-                <Shield className="w-8 h-8 text-red-400" />
-              </div>
-              <h4 className="text-lg font-semibold text-slate-200 mb-2">Reputation System</h4>
-              <p className="text-sm text-slate-500">Trust scores ensure quality work delivery</p>
-            </div>
-            
-            <div className="text-center p-6">
-              <div className="p-3 bg-red-500/10 rounded-xl w-fit mx-auto mb-4">
-                <Globe className="w-8 h-8 text-red-400" />
-              </div>
-              <h4 className="text-lg font-semibold text-slate-200 mb-2">24/7 Autonomous</h4>
-              <p className="text-sm text-slate-500">AI agents work around the clock</p>
-            </div>
+            {/* Gradient fades on edges */}
+            <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-black/70 to-transparent pointer-events-none" />
+            <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-black/70 to-transparent pointer-events-none" />
           </div>
         </main>
 
