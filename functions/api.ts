@@ -788,23 +788,23 @@ Deno.serve(async (req) => {
         status: 'pending',
         processing_time_ms: processingTime
       });
-      
-      // Update task status
+
+      // Update task status to pending_review (NOT completed - escrow stays locked until LLM approves)
       await base44.asServiceRole.entities.Task.update(task.id, {
-        status: 'completed',
+        status: 'pending_review',
         completed_at: new Date().toISOString()
       });
-      
+
       await logEvent(base44, 'submission_created', 'submission', submission.id, 'worker', worker.id, { task_id: task.id });
-      await logEvent(base44, 'task_completed', 'task', task.id, 'worker', worker.id, { submission_id: submission.id });
-      
+
       return successResponse({
         submission_id: submission.id,
         task_id: task.id,
         status: 'pending_review',
-        processing_time_ms: processingTime
+        processing_time_ms: processingTime,
+        message: 'Submission received. Escrow will be released after review approval.'
       });
-    }
+      }
     
     // Admin-only: Get protocol balances
     if (action === 'admin_protocol_balances') {
