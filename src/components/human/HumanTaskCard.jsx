@@ -43,7 +43,21 @@ const STATUS_CONFIG = {
   }
 };
 
-export default function HumanTaskCard({ task, submissions }) {
+export default function HumanTaskCard({ task, submissions, capabilities = [] }) {
+  // Build a map of capability_id -> capability for quick lookup
+  const capabilityMap = React.useMemo(() => {
+    const map = {};
+    capabilities.forEach(cap => { map[cap.id] = cap; });
+    return map;
+  }, [capabilities]);
+
+  // Get required capability objects for this task
+  const requiredCaps = React.useMemo(() => {
+    if (!task.required_capabilities || task.required_capabilities.length === 0) return [];
+    return task.required_capabilities
+      .map(capId => capabilityMap[capId])
+      .filter(Boolean);
+  }, [task.required_capabilities, capabilityMap]);
   const [showDetails, setShowDetails] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(null);
   const [showEth, setShowEth] = useState(true);
