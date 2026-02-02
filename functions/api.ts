@@ -2476,7 +2476,7 @@ Deno.serve(async (req) => {
       await base44.asServiceRole.entities.VerificationChallenge.update(challenge.id, {
         status: 'submitted',
         proof_url: proof_url,
-        proof_data: JSON.stringify({ tweet_id: tweetId })
+        proof_data: { tweet_id: tweetId }
       });
       
       // Auto-verify since it's a valid Twitter URL
