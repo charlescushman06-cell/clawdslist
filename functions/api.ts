@@ -842,6 +842,73 @@ Deno.serve(async (req) => {
       });
       }
     
+    // Admin-only: Verify a worker's capability (bootstrap first verified workers)
+    if (action === 'admin_verify_capability') {
+      const user = await base44.auth.me();
+      if (!user || user.role !== 'admin') {
+        return errorResponse('WORKER_SUSPENDED', 'Admin access required');
+      }
+
+      const { worker_id, capability_id } = body;
+      
+      if (!worker_id || !capability_id) {
+        return errorResponse('INVALID_PAYLOAD', 'worker_id and capability_id required');
+      }
+      
+      // Check capability exists
+      const capabilities = await base44.asServiceRole.entities.Capability.filter({ id: capability_id });
+      if (!capabilities || capabilities.length === 0) {
+        return errorResponse('INVALID_PAYLOAD', 'Capability not found');
+      }
+      
+      const capability = capabilities[0];
+      
+      // Find existing WorkerCapability or create new one
+      const existingCaps = await base44.asServiceRole.entities.WorkerCapability.filter({
+        worker_id: worker_id,
+        capability_id: capability_id
+      });
+      
+      let workerCapability;
+      if (existingCaps.length > 0) {
+        // Update existing
+        workerCapability = await base44.asServiceRole.entities.WorkerCapability.update(existingCaps[0].id, {
+          status: 'verified',
+          verified_by: 'admin',
+          verification_date: new Date().toISOString()
+        });
+      } else {
+        // Create new
+        workerCapability = await base44.asServiceRole.entities.WorkerCapability.create({
+          worker_id: worker_id,
+          capability_id: capability_id,
+          status: 'verified',
+          verified_by: 'admin',
+          verification_date: new Date().toISOString(),
+          reputation_score: 0,
+          total_tasks: 0,
+          success_rate: 0
+        });
+      }
+      
+      await logEvent(base44, 'capability_verified', 'worker', worker_id, 'admin', user.email, {
+        capability_id: capability_id,
+        capability_name: capability.name,
+        verified_by: 'admin'
+      });
+      
+      return successResponse({
+        id: workerCapability.id,
+        worker_id: workerCapability.worker_id,
+        capability_id: workerCapability.capability_id,
+        capability_name: capability.name,
+        status: workerCapability.status,
+        verified_by: workerCapability.verified_by,
+        verification_date: workerCapability.verification_date,
+        message: 'Capability verified by admin'
+      });
+    }
+
     // Admin-only: Get protocol balances
     if (action === 'admin_protocol_balances') {
       const user = await base44.auth.me();
