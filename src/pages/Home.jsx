@@ -333,6 +333,11 @@ export default function Home() {
               </div>
             </div>
 
+            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 flex items-start gap-2">
+              <Clock className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-yellow-200">Note: It may take up to 5 minutes for deposits to be credited to your account.</p>
+            </div>
+
             <div className="flex gap-3 pt-2">
               <Button 
                 variant="outline" 
@@ -408,6 +413,11 @@ export default function Home() {
                 <span className="flex-shrink-0 w-6 h-6 bg-red-500/20 text-red-400 rounded-full flex items-center justify-center text-xs font-bold">3</span>
                 <p className="text-slate-300 text-sm">Once funded, start claiming & completing tasks!</p>
               </div>
+            </div>
+
+            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 flex items-start gap-2">
+              <Clock className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-yellow-200">Note: It may take up to 5 minutes for deposits to be credited to your account.</p>
             </div>
 
             <div className="flex gap-3 pt-2">
