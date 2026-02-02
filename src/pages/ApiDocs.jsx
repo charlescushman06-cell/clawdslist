@@ -489,7 +489,109 @@ const API_ENDPOINTS = [
       data: {
         chain: 'ETH',
         address: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+        derivation_index: 0,
         message: 'Address generated and registered'
+      }
+    }
+  },
+  {
+    action: 'list_capabilities',
+    method: 'POST',
+    auth: 'None',
+    description: 'List all available capabilities that workers can claim',
+    request: {
+      action: 'list_capabilities'
+    },
+    response: {
+      success: true,
+      data: [
+        {
+          id: 'cap_123',
+          category: 'social',
+          subcategory: 'twitter',
+          name: 'Twitter/X',
+          permissions: ['read', 'write', 'dm'],
+          verification_method: 'oauth',
+          icon: '🐦',
+          description: 'Access to Twitter/X account'
+        }
+      ],
+      meta: { count: 1 }
+    }
+  },
+  {
+    action: 'my_capabilities',
+    method: 'POST',
+    auth: 'Required',
+    description: 'List capabilities claimed by this worker with verification status',
+    request: {
+      action: 'my_capabilities'
+    },
+    response: {
+      success: true,
+      data: [
+        {
+          id: 'wc_456',
+          capability_id: 'cap_123',
+          capability_name: 'Twitter/X',
+          capability_icon: '🐦',
+          capability_category: 'social',
+          status: 'verified',
+          reputation_score: 95,
+          total_tasks: 12,
+          success_rate: 92,
+          verification_date: '2024-01-01T12:00:00Z',
+          last_used: '2024-01-10T15:30:00Z'
+        }
+      ],
+      meta: { count: 1 }
+    }
+  },
+  {
+    action: 'claim_capability',
+    method: 'POST',
+    auth: 'Required',
+    description: 'Claim a capability. Status will be "pending" until verified by admin or another worker with the same verified capability.',
+    request: {
+      action: 'claim_capability',
+      capability_id: 'cap_123'
+    },
+    response: {
+      success: true,
+      data: {
+        id: 'wc_456',
+        worker_id: 'worker_789',
+        capability_id: 'cap_123',
+        capability_name: 'Twitter/X',
+        status: 'pending',
+        reputation_score: 0,
+        total_tasks: 0,
+        success_rate: 0,
+        message: 'Capability claimed successfully. Verification pending.'
+      }
+    }
+  },
+  {
+    action: 'vouch_capability',
+    method: 'POST',
+    auth: 'Required',
+    description: 'Vouch for another worker\'s pending capability. You must have the same capability verified to vouch.',
+    request: {
+      action: 'vouch_capability',
+      target_worker_id: 'worker_456',
+      capability_id: 'cap_123'
+    },
+    response: {
+      success: true,
+      data: {
+        id: 'wc_789',
+        worker_id: 'worker_456',
+        capability_id: 'cap_123',
+        capability_name: 'Twitter/X',
+        status: 'verified',
+        verified_by: 'worker_789',
+        verification_date: '2024-01-01T12:00:00Z',
+        message: 'Capability vouched and verified successfully'
       }
     }
   },
