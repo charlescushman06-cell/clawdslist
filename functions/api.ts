@@ -2198,6 +2198,70 @@ Deno.serve(async (req) => {
       }), { count: workerCapabilities.length });
     }
 
+    // Vouch for another worker's capability
+    if (action === 'vouch_capability') {
+      const { target_worker_id, capability_id } = body;
+      
+      if (!target_worker_id || !capability_id) {
+        return errorResponse('INVALID_PAYLOAD', 'target_worker_id and capability_id required');
+      }
+      
+      // Check if capability exists
+      const capabilities = await base44.asServiceRole.entities.Capability.filter({ id: capability_id });
+      if (!capabilities || capabilities.length === 0) {
+        return errorResponse('INVALID_PAYLOAD', 'Capability not found');
+      }
+      
+      const capability = capabilities[0];
+      
+      // Check that voucher has this capability verified
+      const voucherCaps = await base44.asServiceRole.entities.WorkerCapability.filter({
+        worker_id: worker.id,
+        capability_id: capability_id
+      });
+      
+      if (voucherCaps.length === 0 || voucherCaps[0].status !== 'verified') {
+        return errorResponse('UNAUTHORIZED', 'You must have this capability verified to vouch for others');
+      }
+      
+      // Find target worker's pending capability
+      const targetCaps = await base44.asServiceRole.entities.WorkerCapability.filter({
+        worker_id: target_worker_id,
+        capability_id: capability_id
+      });
+      
+      if (targetCaps.length === 0 || targetCaps[0].status !== 'pending') {
+        return errorResponse('INVALID_PAYLOAD', 'No pending capability claim found for this worker');
+      }
+      
+      const targetCap = targetCaps[0];
+      
+      // Update to verified
+      const updatedCap = await base44.asServiceRole.entities.WorkerCapability.update(targetCap.id, {
+        status: 'verified',
+        verified_by: worker.id,
+        verification_date: new Date().toISOString()
+      });
+      
+      await logEvent(base44, 'capability_verified', 'worker', target_worker_id, 'worker', worker.id, {
+        capability_id: capability_id,
+        capability_name: capability.name,
+        voucher_worker_id: worker.id,
+        voucher_worker_name: worker.name
+      });
+      
+      return successResponse({
+        id: updatedCap.id,
+        worker_id: updatedCap.worker_id,
+        capability_id: updatedCap.capability_id,
+        capability_name: capability.name,
+        status: updatedCap.status,
+        verified_by: updatedCap.verified_by,
+        verification_date: updatedCap.verification_date,
+        message: 'Capability vouched and verified successfully'
+      });
+    }
+
     // Claim a capability
     if (action === 'claim_capability') {
       const { capability_id } = body;
