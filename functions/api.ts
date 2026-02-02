@@ -1986,7 +1986,8 @@ Deno.serve(async (req) => {
         reward: rewardAmount,
         escrow_amount: rewardAmount,
         escrow_status: rewardAmount ? 'locked' : 'none',
-        validation_mode: taskValidationMode
+        validation_mode: taskValidationMode,
+        required_capabilities: required_capabilities && required_capabilities.length > 0 ? required_capabilities : null
       });
 
       // Log task creation event
