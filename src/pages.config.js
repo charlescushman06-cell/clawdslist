@@ -53,6 +53,8 @@ import BrandUsage from './pages/BrandUsage';
 import Copyright from './pages/Copyright';
 import Dashboard from './pages/Dashboard';
 import Events from './pages/Events';
+import Home from './pages/Home';
+import HumanPortal from './pages/HumanPortal';
 import ProtocolRevenue from './pages/ProtocolRevenue';
 import ReviewQueue from './pages/ReviewQueue';
 import Settings from './pages/Settings';
@@ -61,8 +63,6 @@ import Tasks from './pages/Tasks';
 import Terms from './pages/Terms';
 import Withdrawals from './pages/Withdrawals';
 import Workers from './pages/Workers';
-import Home from './pages/Home';
-import HumanPortal from './pages/HumanPortal';
 import __Layout from './Layout.jsx';
 
 
@@ -73,6 +73,8 @@ export const PAGES = {
     "Copyright": Copyright,
     "Dashboard": Dashboard,
     "Events": Events,
+    "Home": Home,
+    "HumanPortal": HumanPortal,
     "ProtocolRevenue": ProtocolRevenue,
     "ReviewQueue": ReviewQueue,
     "Settings": Settings,
@@ -81,8 +83,6 @@ export const PAGES = {
     "Terms": Terms,
     "Withdrawals": Withdrawals,
     "Workers": Workers,
-    "Home": Home,
-    "HumanPortal": HumanPortal,
 }
 
 export const pagesConfig = {

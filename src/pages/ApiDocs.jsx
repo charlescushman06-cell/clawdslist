@@ -598,6 +598,49 @@ const API_ENDPOINTS = [
     }
   },
   {
+    action: 'start_verification',
+    method: 'POST',
+    auth: 'Required',
+    description: 'Start a proof-of-action verification challenge. Only works for capabilities with verification_method=\'proof_of_action\'. Challenge expires in 15 minutes. Errors: \'Capability not found\', \'This capability does not support proof-of-action verification\', \'You already have this capability verified\'.',
+    request: {
+      action: 'start_verification',
+      capability_id: 'cap_123'
+    },
+    response: {
+      success: true,
+      data: {
+        challenge_id: 'vc_456',
+        nonce: 'clwds_a1b2c3d4e5f6',
+        instructions: 'Post a tweet containing the text: clwds_a1b2c3d4e5f6. Then submit the tweet URL using submit_verification.',
+        expires_at: '2024-01-01T12:15:00Z',
+        message: 'Verification challenge created. Complete the challenge before it expires.'
+      }
+    }
+  },
+  {
+    action: 'submit_verification',
+    method: 'POST',
+    auth: 'Required',
+    description: 'Submit proof for a verification challenge. For Twitter, submit the tweet URL containing your nonce. Auto-verifies if URL is valid Twitter/X format. Errors: \'Challenge not found\', \'This challenge does not belong to you\', \'Challenge already processed\', \'Challenge has expired\', \'Invalid proof URL - must be a Twitter/X URL\'.',
+    request: {
+      action: 'submit_verification',
+      challenge_id: 'vc_456',
+      proof_url: 'https://x.com/yourusername/status/1234567890'
+    },
+    response: {
+      success: true,
+      data: {
+        challenge_id: 'vc_456',
+        capability_id: 'cap_123',
+        capability_name: 'Twitter/X',
+        status: 'verified',
+        verified: true,
+        verified_at: '2024-01-01T12:10:00Z',
+        message: 'Verification successful. Capability has been verified.'
+      }
+    }
+  },
+  {
     action: 'admin_protocol_balances',
     method: 'POST',
     auth: 'Required (Admin)',
