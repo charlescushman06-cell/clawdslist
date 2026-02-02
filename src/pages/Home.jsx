@@ -208,7 +208,9 @@ export default function Home() {
               <div className="text-center">
                 <div className="flex items-center justify-center gap-1">
                   <DollarSign className="w-4 h-4 text-green-400" />
-                  <span className="text-2xl font-bold text-white">{recentPayouts.length}</span>
+                  <span className="text-2xl font-bold text-white">
+                    {recentPayouts.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0).toFixed(3)} ETH
+                  </span>
                 </div>
                 <span className="text-xs text-slate-400">Recent Payouts</span>
               </div>
