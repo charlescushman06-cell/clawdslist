@@ -160,71 +160,48 @@ export default function HumanTaskCard({ task, submissions }) {
           </Badge>
         </div>
 
-        {/* Metadata */}
-        <div className="grid grid-cols-3 gap-1 sm:gap-2 mb-3 p-2 bg-black/50 border border-red-900/30 rounded-lg">
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-0.5 sm:gap-1 text-red-400 mb-1 h-5 overflow-hidden">
-              <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+        {/* Metadata - Trading Terminal Style */}
+        <div className="grid grid-cols-3 gap-px mb-3 bg-slate-800 border border-slate-700">
+          <div className="bg-black p-2 text-center">
+            <p className="text-[9px] sm:text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">REWARD</p>
+            <div className="font-mono text-green-400 text-xs sm:text-sm font-bold h-5 flex items-center justify-center">
               {task.reward && task.task_price_usd ? (
-                <div className="relative">
-                  <span 
-                    className={`text-xs sm:text-sm font-semibold block transition-all duration-300 ${showEth ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 absolute'}`}
-                  >
-                    {task.reward}
-                  </span>
-                  <span 
-                    className={`text-xs sm:text-sm font-semibold block transition-all duration-300 ${!showEth ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 absolute'}`}
-                  >
-                    ${task.task_price_usd}
-                  </span>
-                </div>
+                <span className={`transition-opacity duration-200 ${showEth ? 'opacity-100' : 'opacity-0 absolute'}`}>
+                  {task.reward} <span className="text-slate-500 text-[10px]">ETH</span>
+                </span>
+              ) : null}
+              {task.reward && task.task_price_usd ? (
+                <span className={`transition-opacity duration-200 ${!showEth ? 'opacity-100' : 'opacity-0 absolute'}`}>
+                  ${task.task_price_usd}
+                </span>
               ) : (
-                <span className="text-xs sm:text-sm font-semibold truncate">
-                  {task.reward ? `${task.reward}` : task.task_price_usd ? `$${task.task_price_usd}` : '0'}
+                <span>
+                  {task.reward ? `${task.reward}` : task.task_price_usd ? `$${task.task_price_usd}` : '--'}
                 </span>
               )}
             </div>
-            <p className="text-[10px] sm:text-xs text-slate-500">
-              {task.reward && task.task_price_usd ? (showEth ? 'ETH' : 'USD') : 'Pay'}
-            </p>
           </div>
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-0.5 sm:gap-1 text-red-400 mb-1">
-              <Shield className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-              <span className="text-xs sm:text-sm font-semibold">{task.required_stake_usd || 0}</span>
+          <div className="bg-black p-2 text-center">
+            <p className="text-[9px] sm:text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">STAKE</p>
+            <div className="font-mono text-yellow-400 text-xs sm:text-sm font-bold">
+              ${task.required_stake_usd || '0'}
             </div>
-            <p className="text-[10px] sm:text-xs text-slate-500">Stake</p>
           </div>
-          <div className="text-center">
-            {(task.status === 'claimed' || (task.status === 'open' && (task.expires_at || task.deadline))) && timeRemaining !== null ? (
-              timeRemaining === 0 ? (
-                <>
-                  <div className="flex items-center justify-center gap-0.5 sm:gap-1 mb-1 text-red-500">
-                    <XCircle className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                    <span className="text-xs sm:text-sm font-semibold">Exp</span>
-                  </div>
-                  <p className="text-[10px] sm:text-xs text-slate-500">Time Up</p>
-                </>
-              ) : (
-                <>
-                  <div className={`flex items-center justify-center gap-0.5 sm:gap-1 mb-1 ${getTimeColor(timeRemaining)}`}>
-                    <Timer className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                    <span className="text-xs sm:text-sm font-semibold">{formatTimeRemaining(timeRemaining)}</span>
-                  </div>
-                  <p className="text-[10px] sm:text-xs text-slate-500">
-                    {task.status === 'claimed' ? 'Left' : 'Exp'}
-                  </p>
-                </>
-              )
-            ) : (
-              <>
-                <div className="flex items-center justify-center gap-0.5 sm:gap-1 text-red-400 mb-1">
-                  <Clock className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                  <span className="text-xs sm:text-sm font-semibold">{task.claim_timeout_minutes || '-'}</span>
-                </div>
-                <p className="text-[10px] sm:text-xs text-slate-500">Min</p>
-              </>
-            )}
+          <div className="bg-black p-2 text-center">
+            <p className="text-[9px] sm:text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">
+              {(task.status === 'claimed' || (task.status === 'open' && (task.expires_at || task.deadline))) && timeRemaining !== null
+                ? (timeRemaining === 0 ? 'EXPIRED' : 'TTL')
+                : 'TIMEOUT'}
+            </p>
+            <div className={`font-mono text-xs sm:text-sm font-bold ${
+              (task.status === 'claimed' || (task.status === 'open' && (task.expires_at || task.deadline))) && timeRemaining !== null
+                ? (timeRemaining === 0 ? 'text-red-500' : getTimeColor(timeRemaining))
+                : 'text-slate-400'
+            }`}>
+              {(task.status === 'claimed' || (task.status === 'open' && (task.expires_at || task.deadline))) && timeRemaining !== null
+                ? (timeRemaining === 0 ? '--:--' : formatTimeRemaining(timeRemaining))
+                : `${task.claim_timeout_minutes || '--'}m`}
+            </div>
           </div>
         </div>
 
