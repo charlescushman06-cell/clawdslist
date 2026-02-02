@@ -166,6 +166,20 @@ export default function HumanTaskCard({ task, submissions, capabilities = [] }) 
               <h3 className="text-sm sm:text-base font-semibold text-slate-100 truncate">{task.title}</h3>
             </div>
             <p className="text-xs sm:text-sm text-slate-400 line-clamp-2">{task.description}</p>
+            {/* Required Capabilities */}
+            {requiredCaps.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {requiredCaps.map(cap => (
+                  <span 
+                    key={cap.id}
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-black border border-slate-700 text-[9px] sm:text-[10px] font-mono text-slate-400"
+                  >
+                    <span>{cap.icon || '⚡'}</span>
+                    <span className="uppercase tracking-wider">{cap.name}</span>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
           <Badge className={`${statusConfig.color} flex items-center gap-1 whitespace-nowrap text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5`}>
             <StatusIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
