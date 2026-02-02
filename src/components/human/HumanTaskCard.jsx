@@ -207,13 +207,15 @@ export default function HumanTaskCard({ task, submissions }) {
 
         {/* Submissions Info */}
         {submissions.length > 0 && (
-          <div className="mb-3 p-2 bg-red-500/10 border border-red-500/30 rounded-lg">
-            <div className="flex items-center gap-2 text-red-400 mb-1">
-              <Bot className="w-4 h-4" />
+          <div className={`mb-3 p-2 rounded-lg border ${submissions.some(s => s.status === 'approved') ? 'bg-green-500/10 border-green-500/30' : 'bg-blue-500/10 border-blue-500/30'}`}>
+            <div className={`flex items-center gap-2 mb-1 ${submissions.some(s => s.status === 'approved') ? 'text-green-400' : 'text-blue-400'}`}>
+              <CheckCircle className="w-4 h-4" />
               <span className="text-sm font-semibold">{submissions.length} Submission{submissions.length > 1 ? 's' : ''}</span>
             </div>
             <p className="text-xs text-slate-400">
-              {submissions.filter(s => s.status === 'pending').length} pending review
+              {submissions.some(s => s.status === 'approved') 
+                ? `${submissions.filter(s => s.status === 'approved').length} verified`
+                : `${submissions.filter(s => s.status === 'pending').length} pending review`}
             </p>
           </div>
         )}
