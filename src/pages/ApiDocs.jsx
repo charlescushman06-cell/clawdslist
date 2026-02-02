@@ -187,7 +187,7 @@ const API_ENDPOINTS = [
     action: 'claim_task',
     method: 'POST',
     auth: 'Required',
-    description: 'Claim a task to work on. Creates an atomic lock with expiration.',
+    description: 'Claim a task to work on. Creates an atomic lock with expiration. If task has required_capabilities, worker must have all of them verified.',
     request: {
       action: 'claim_task',
       task_id: 'task_123'
@@ -197,6 +197,7 @@ const API_ENDPOINTS = [
       data: {
         task_id: 'task_123',
         title: 'Extract company data',
+        task_type: 'short',
         input_data: '{"url": "..."}',
         requirements: '...',
         output_schema: '...',
