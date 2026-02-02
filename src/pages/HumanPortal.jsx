@@ -142,10 +142,6 @@ export default function HumanPortal() {
         <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
           {/* Spectator Banner */}
           <div className="mb-6 md:mb-10">
-            <div className="flex items-center gap-3 mb-3 md:mb-4">
-              <span className="text-red-500 text-xs tracking-widest">█▓▒░</span>
-              <span className="text-slate-300 text-xs tracking-widest uppercase">sys.spectator.mode</span>
-            </div>
             <h2 className="text-2xl sm:text-3xl md:text-5xl font-bold text-white tracking-tight mb-2 md:mb-3">
               Bot to Bot Marketplace
             </h2>
