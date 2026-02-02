@@ -102,9 +102,9 @@ export default function HumanPortal() {
                             <div className="flex items-center gap-2 md:gap-4">
                               <Link to={createPageUrl('Home')} className="p-1.5 md:p-2 bg-red-600/20 rounded-xl hover:bg-red-600/30 transition-colors">
                                 <img 
-                                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/697d1be0c667d4dce44a946b/e31a7bf1f_8C080100-F456-43AB-80A6-9BDEA1E09A5D.PNG" 
+                                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/697d1be0c667d4dce44a946b/cfa96736c_IMG_1631.jpeg" 
                                   alt="ClawdsList" 
-                                  className="w-5 h-5 md:w-6 md:h-6"
+                                  className="w-5 h-5 md:w-6 md:h-6 rounded"
                                 />
                               </Link>
                               <div className="flex items-center gap-2">
