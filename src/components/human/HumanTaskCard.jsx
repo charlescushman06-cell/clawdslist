@@ -239,104 +239,115 @@ export default function HumanTaskCard({ task, submissions }) {
 
       {/* Details Dialog */}
       <Dialog open={showDetails} onOpenChange={setShowDetails}>
-        <DialogContent className="bg-slate-900 border-slate-700 max-w-4xl max-h-[90vh] overflow-y-auto mx-2 sm:mx-auto w-[calc(100%-1rem)] sm:w-full">
-          <DialogHeader>
-            <DialogTitle className="text-slate-100 text-xl">{task.title}</DialogTitle>
-          </DialogHeader>
+        <DialogContent className="bg-black border border-slate-700 p-0 max-w-3xl max-h-[90vh] overflow-hidden mx-2 sm:mx-auto w-[calc(100%-1rem)] sm:w-full">
+          {/* Terminal Header */}
+          <div className="bg-slate-900 border-b border-slate-700 px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
+                <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/80" />
+                <div className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
+              </div>
+              <span className="font-mono text-xs text-slate-500 uppercase tracking-wider">TASK_INSPECTOR</span>
+            </div>
+            <Badge className={`${statusConfig.color} font-mono text-[10px] uppercase`}>
+              {statusConfig.label}
+            </Badge>
+          </div>
           
-          <div className="space-y-6">
-            {/* Status Banner */}
-            <div className={`${statusConfig.color} border rounded-lg p-4 flex items-center gap-3`}>
-              <StatusIcon className="w-6 h-6" />
-              <div>
-                <p className="font-semibold">{statusConfig.label}</p>
-                <p className="text-xs opacity-80">
-                  {task.status === 'open' && 'Waiting for bots to claim this task'}
-                  {task.status === 'claimed' && 'A bot is currently working on this'}
-                  {task.status === 'completed' && 'Task completed, review submissions below'}
-                  {task.status === 'expired' && 'Task deadline has passed'}
+          <div className="overflow-y-auto max-h-[calc(90vh-60px)] p-4 space-y-4">
+            {/* Task Title */}
+            <div className="border-b border-slate-800 pb-3">
+              <p className="text-[10px] text-slate-600 uppercase tracking-wider mb-1">TASK_ID</p>
+              <h2 className="font-mono text-base sm:text-lg text-slate-100">{task.title}</h2>
+            </div>
+
+            {/* Metrics Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-slate-800">
+              <div className="bg-black p-3">
+                <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-1">REWARD</p>
+                <p className="font-mono text-sm text-green-400 font-bold">
+                  {task.reward ? `${task.reward} ETH` : `$${task.task_price_usd || 0}`}
                 </p>
               </div>
-            </div>
-
-            {/* Task Details */}
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-slate-500 uppercase mb-2">Type</p>
-                <p className="text-slate-300">{task.type}</p>
+              <div className="bg-black p-3">
+                <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-1">STAKE_REQ</p>
+                <p className="font-mono text-sm text-yellow-400 font-bold">${task.required_stake_usd || 0}</p>
               </div>
-              <div>
-                <p className="text-xs text-slate-500 uppercase mb-2">Priority</p>
-                <p className="text-slate-300">{task.priority}/10</p>
+              <div className="bg-black p-3">
+                <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-1">TIMEOUT</p>
+                <p className="font-mono text-sm text-slate-300">{task.claim_timeout_minutes || '--'}m</p>
+              </div>
+              <div className="bg-black p-3">
+                <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-1">SLASH_%</p>
+                <p className="font-mono text-sm text-red-400">{task.slash_percentage || 0}%</p>
               </div>
             </div>
 
-            <div>
-              <p className="text-xs text-slate-500 uppercase mb-2">Description</p>
-              <p className="text-slate-300 whitespace-pre-wrap">{task.description}</p>
+            {/* Task Info */}
+            <div className="grid grid-cols-2 gap-px bg-slate-800">
+              <div className="bg-black p-3">
+                <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-1">TYPE</p>
+                <p className="font-mono text-xs text-slate-300">{task.type}</p>
+              </div>
+              <div className="bg-black p-3">
+                <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-1">PRIORITY</p>
+                <p className="font-mono text-xs text-slate-300">{task.priority || 0}/10</p>
+              </div>
             </div>
 
+            {/* Description */}
+            <div className="bg-slate-900/50 border border-slate-800 p-3">
+              <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-2">DESCRIPTION</p>
+              <p className="font-mono text-xs text-slate-400 whitespace-pre-wrap leading-relaxed">{task.description}</p>
+            </div>
+
+            {/* Requirements */}
             {task.requirements && (
-              <div>
-                <p className="text-xs text-slate-500 uppercase mb-2">Requirements</p>
-                <p className="text-slate-300 whitespace-pre-wrap">{task.requirements}</p>
+              <div className="bg-slate-900/50 border border-slate-800 p-3">
+                <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-2">REQUIREMENTS</p>
+                <p className="font-mono text-xs text-slate-400 whitespace-pre-wrap leading-relaxed">{task.requirements}</p>
               </div>
             )}
-
-            {/* Payment Info */}
-            <div className="bg-slate-800/50 rounded-lg p-4 space-y-3">
-              <h3 className="text-sm font-semibold text-slate-300">Payment Terms</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-slate-500">Task Price</p>
-                  <p className="text-lg font-semibold text-red-400">
-                    {task.reward ? `${task.reward} ${task.currency || 'ETH'}` : task.task_price_usd ? `$${task.task_price_usd}` : '$0'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Bot Stake Required</p>
-                  <p className="text-lg font-semibold text-red-400">${task.required_stake_usd || 0}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Time Limit</p>
-                  <p className="text-slate-300">{task.claim_timeout_minutes} minutes</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Slash Percentage</p>
-                  <p className="text-slate-300">{task.slash_percentage}%</p>
-                </div>
-              </div>
-            </div>
 
             {/* Submissions */}
             {submissions.length > 0 && (
               <div>
-                <h3 className="text-sm font-semibold text-slate-300 mb-3">Submissions</h3>
-                <div className="space-y-3">
+                <div className="flex items-center gap-2 mb-3 border-b border-slate-800 pb-2">
+                  <CheckCircle className={`w-4 h-4 ${submissions.some(s => s.status === 'approved') ? 'text-green-400' : 'text-blue-400'}`} />
+                  <span className="font-mono text-xs text-slate-500 uppercase tracking-wider">
+                    SUBMISSIONS [{submissions.length}]
+                  </span>
+                </div>
+                <div className="space-y-2">
                   {submissions.map(sub => (
-                    <div key={sub.id} className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
+                    <div key={sub.id} className="bg-slate-900/50 border border-slate-800">
+                      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800 bg-slate-900">
                         <div className="flex items-center gap-2">
-                          <Bot className="w-4 h-4 text-red-400" />
-                          <span className="text-sm text-slate-300">{sub.worker_name}</span>
+                          <Bot className="w-3 h-3 text-slate-500" />
+                          <span className="font-mono text-xs text-slate-400">{sub.worker_name}</span>
                         </div>
-                        <Badge className={
-                          sub.status === 'approved' ? 'bg-red-500/10 text-red-400 border-red-500/30' :
-                          sub.status === 'rejected' ? 'bg-slate-500/10 text-slate-400' :
-                          'bg-red-500/10 text-red-400 border-red-500/30'
-                        }>
+                        <span className={`font-mono text-[10px] uppercase ${
+                          sub.status === 'approved' ? 'text-green-400' :
+                          sub.status === 'rejected' ? 'text-red-400' :
+                          'text-blue-400'
+                        }`}>
                           {sub.status}
-                        </Badge>
+                        </span>
                       </div>
-                      <p className="text-xs text-slate-500 mb-2">
-                        Submitted {format(new Date(sub.created_date), 'MMM d, yyyy HH:mm')}
-                      </p>
-                      <pre className="bg-slate-950 border border-slate-800 rounded p-3 text-xs text-slate-400 overflow-x-auto max-h-40">
-                        {formatOutput(sub.output_data)}
-                      </pre>
-                      {sub.review_notes && (
-                        <p className="text-xs text-slate-400 mt-2 italic">Note: {sub.review_notes}</p>
-                      )}
+                      <div className="p-3">
+                        <p className="text-[9px] text-slate-600 mb-2">
+                          {format(new Date(sub.created_date), 'yyyy-MM-dd HH:mm:ss')}
+                        </p>
+                        <pre className="bg-black border border-slate-800 p-2 font-mono text-[10px] sm:text-xs text-slate-400 overflow-x-auto max-h-32 whitespace-pre-wrap break-all">
+                          {formatOutput(sub.output_data)}
+                        </pre>
+                        {sub.review_notes && (
+                          <p className="font-mono text-[10px] text-slate-500 mt-2 border-t border-slate-800 pt-2">
+                            // {sub.review_notes}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
