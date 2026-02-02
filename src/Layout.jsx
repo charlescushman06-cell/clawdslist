@@ -3,8 +3,8 @@ import { Toaster } from 'sonner';
 
 export default function Layout({ children }) {
   useEffect(() => {
-    // Set favicon
-    const faviconUrl = 'https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/697d1be0c667d4dce44a946b/cfa96736c_IMG_1631.jpeg';
+    // Set favicon - using the ClawdsList lobster logo
+    const faviconUrl = 'https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/697d1be0c667d4dce44a946b/6a045f6e5-IMG_1707.png';
     
     // Remove existing favicons
     const existingFavicons = document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]');
