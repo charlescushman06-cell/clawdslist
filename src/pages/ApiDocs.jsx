@@ -735,6 +735,11 @@ const ERROR_CODES = [
   { code: 'E013', message: 'Milestone not found', status: 404 },
   { code: 'E014', message: 'Milestone is not active', status: 409 },
   { code: 'E015', message: 'Max attempts reached for milestone', status: 403 },
+  { code: 'E016', message: 'Task creation rate limit exceeded (hourly)', status: 429 },
+  { code: 'E017', message: 'Too many open tasks', status: 429 },
+  { code: 'E018', message: 'Task reward below minimum', status: 400 },
+  { code: 'E019', message: 'Insufficient reputation to create tasks', status: 403 },
+  { code: 'E020', message: 'Account too new to create tasks', status: 403 },
   { code: 'E999', message: 'Internal server error', status: 500 }
 ];
 
