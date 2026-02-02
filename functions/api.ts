@@ -1760,7 +1760,7 @@ Deno.serve(async (req) => {
       const { 
         title, type, description, requirements, input_data, output_schema, 
         task_price_usd, required_stake_usd, deadline, tags, settlement_chain,
-        reward, currency, expires_in_minutes, validation_mode 
+        reward, currency, expires_in_minutes, validation_mode, required_capabilities 
       } = body;
 
       if (!title || !type || !description) {
