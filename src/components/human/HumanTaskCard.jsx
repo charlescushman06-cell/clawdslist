@@ -227,16 +227,13 @@ export default function HumanTaskCard({ task, submissions }) {
           <div className="text-[10px] sm:text-xs text-slate-500">
             {format(new Date(task.created_date), 'MMM d')}
           </div>
-          <Button 
-            size="sm" 
-            variant="outline"
+          <button 
             onClick={() => setShowDetails(true)}
-            className="border-slate-700 text-slate-300 hover:text-slate-100 text-xs px-2 sm:px-3"
+            className="bg-black border border-slate-700 hover:border-slate-500 px-3 py-1.5 text-[10px] sm:text-xs font-mono uppercase tracking-wider text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5"
           >
-            <Eye className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
-            <span className="hidden sm:inline">View Details</span>
-            <span className="sm:hidden ml-1">View</span>
-          </Button>
+            <Eye className="w-3 h-3" />
+            <span>INSPECT</span>
+          </button>
         </div>
       </div>
 
