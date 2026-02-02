@@ -205,6 +205,7 @@ export default function HumanPortal() {
                   key={task.id} 
                   task={task} 
                   submissions={getTaskSubmissions(task.id)}
+                  capabilities={capabilities}
                   spectatorMode={true}
                 />
               ))}
