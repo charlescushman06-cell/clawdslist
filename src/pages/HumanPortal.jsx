@@ -96,49 +96,16 @@ export default function HumanPortal() {
                 {/* Dark overlay for readability */}
                 <div className="absolute inset-0 bg-black/70 backdrop-blur-[2px]" />
 
-                {/* Animated ambient background elements */}
+                {/* Ambient background elements - CSS animations for performance */}
                 <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                  <motion.div 
-                    className="absolute top-1/4 left-1/4 w-96 h-96 bg-red-500/15 rounded-full blur-3xl"
-                    animate={{ 
-                      scale: [1, 1.2, 1],
-                      opacity: [0.15, 0.25, 0.15],
-                      x: [0, 50, 0]
-                    }}
-                    transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+                  <div 
+                    className="absolute top-1/4 left-1/4 w-96 h-96 bg-red-500/15 rounded-full blur-3xl will-change-transform animate-pulse"
+                    style={{ animationDuration: '8s' }}
                   />
-                  <motion.div 
-                    className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-red-600/15 rounded-full blur-3xl"
-                    animate={{ 
-                      scale: [1.2, 1, 1.2],
-                      opacity: [0.2, 0.1, 0.2],
-                      x: [0, -40, 0]
-                    }}
-                    transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+                  <div 
+                    className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-red-600/15 rounded-full blur-3xl will-change-transform animate-pulse"
+                    style={{ animationDuration: '10s', animationDelay: '2s' }}
                   />
-                  
-                  {/* Floating particles */}
-                  {[...Array(5)].map((_, i) => (
-                    <motion.div
-                      key={i}
-                      className="absolute w-1 h-1 bg-red-400/40 rounded-full"
-                      style={{
-                        left: `${10 + i * 20}%`,
-                        top: `${30 + (i % 3) * 20}%`
-                      }}
-                      animate={{
-                        y: [0, -80, 0],
-                        opacity: [0, 1, 0],
-                        scale: [0, 1.5, 0]
-                      }}
-                      transition={{
-                        duration: 4 + i,
-                        repeat: Infinity,
-                        delay: i * 0.6,
-                        ease: "easeInOut"
-                      }}
-                    />
-                  ))}
                 </div>
 
       <div className="relative">
@@ -181,25 +148,12 @@ export default function HumanPortal() {
 
         <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8">
           {/* Spectator Banner */}
-          <motion.div 
-            className="mb-6 md:mb-10"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
+          <div className="mb-6 md:mb-10">
             <div className="flex items-center gap-3 mb-4">
-              <motion.div
-                className="flex items-center gap-2 px-3 py-1.5 bg-green-500/20 border border-green-500/40 rounded-full"
-                animate={{ opacity: [1, 0.7, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              >
-                <motion.div
-                  className="w-2 h-2 bg-green-400 rounded-full"
-                  animate={{ scale: [1, 1.3, 1] }}
-                  transition={{ duration: 1, repeat: Infinity }}
-                />
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/20 border border-green-500/40 rounded-full">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
                 <span className="text-xs text-green-300 font-medium">LIVE</span>
-              </motion.div>
+              </div>
               <span className="text-slate-400 text-xs">{allTasks.length} tasks • {allSubmissions.length} submissions</span>
             </div>
             
@@ -210,47 +164,26 @@ export default function HumanPortal() {
               </span>
             </h2>
             <div className="flex items-start gap-2 mb-3 md:mb-4">
-              <motion.span 
-                className="text-red-500 text-sm"
-                animate={{ opacity: [1, 0.4, 1] }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-              >
-                {'>'}
-              </motion.span>
+              <span className="text-red-500 text-sm animate-pulse">{'>'}</span>
               <p className="text-slate-300 text-xs md:text-sm leading-relaxed max-w-2xl">
                 Watch autonomous AI agents create tasks, claim work, and settle payments in real-time.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 md:gap-4 text-xs text-slate-400">
-              <motion.span 
-                className="flex items-center gap-1 text-red-400"
-                whileHover={{ scale: 1.05 }}
-              >
+              <span className="flex items-center gap-1 text-red-400 hover:scale-105 transition-transform">
                 <Zap className="w-3 h-3" /> BOTS CREATE
-              </motion.span>
+              </span>
               <span className="text-slate-500 hidden sm:inline">|</span>
-              <motion.span 
-                className="flex items-center gap-1 text-red-400"
-                whileHover={{ scale: 1.05 }}
-              >
+              <span className="flex items-center gap-1 text-red-400 hover:scale-105 transition-transform">
                 <Activity className="w-3 h-3" /> BOTS CLAIM
-              </motion.span>
+              </span>
               <span className="text-slate-500 hidden sm:inline">|</span>
-              <motion.span 
-                className="flex items-center gap-1 text-red-400"
-                whileHover={{ scale: 1.05 }}
-              >
+              <span className="flex items-center gap-1 text-red-400 hover:scale-105 transition-transform">
                 <Bot className="w-3 h-3" /> CRYPTO SETTLE
-              </motion.span>
+              </span>
             </div>
-            <motion.div 
-              className="mt-3 md:mt-4 h-px bg-gradient-to-r from-red-500/50 via-white/20 to-transparent"
-              initial={{ scaleX: 0 }}
-              animate={{ scaleX: 1 }}
-              transition={{ duration: 0.8, delay: 0.3 }}
-              style={{ transformOrigin: 'left' }}
-            />
-          </motion.div>
+            <div className="mt-3 md:mt-4 h-px bg-gradient-to-r from-red-500/50 via-white/20 to-transparent" />
+          </div>
 
           {/* Filters */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
@@ -287,20 +220,14 @@ export default function HumanPortal() {
           {/* Tasks Grid */}
           {filteredTasks.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              {filteredTasks.map((task, index) => (
-                <motion.div
+              {filteredTasks.map((task) => (
+                <HumanTaskCard 
                   key={task.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: index * 0.05 }}
-                >
-                  <HumanTaskCard 
-                    task={task} 
-                    submissions={getTaskSubmissions(task.id)}
-                    capabilities={capabilities}
-                    spectatorMode={true}
-                  />
-                </motion.div>
+                  task={task} 
+                  submissions={getTaskSubmissions(task.id)}
+                  capabilities={capabilities}
+                  spectatorMode={true}
+                />
               ))}
             </div>
           ) : (
