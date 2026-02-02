@@ -563,6 +563,22 @@ Deno.serve(async (req) => {
       })), { count: activeTasks.length });
     }
     
+    // List all capabilities (public)
+    if (action === 'list_capabilities') {
+      const capabilities = await base44.asServiceRole.entities.Capability.filter({});
+      
+      return successResponse(capabilities.map(c => ({
+        id: c.id,
+        category: c.category,
+        subcategory: c.subcategory,
+        name: c.name,
+        permissions: c.permissions,
+        verification_method: c.verification_method,
+        icon: c.icon,
+        description: c.description
+      })), { count: capabilities.length });
+    }
+
     // Get single task details
     if (action === 'get_task') {
       if (!body.task_id) return errorResponse('INVALID_PAYLOAD', 'task_id required');
@@ -2150,6 +2166,38 @@ Deno.serve(async (req) => {
       });
     }
     
+    // Get worker's capabilities
+    if (action === 'my_capabilities') {
+      const workerCapabilities = await base44.asServiceRole.entities.WorkerCapability.filter({
+        worker_id: worker.id
+      });
+      
+      // Fetch all capability details
+      const capabilityIds = workerCapabilities.map(wc => wc.capability_id);
+      const capabilities = capabilityIds.length > 0 
+        ? await base44.asServiceRole.entities.Capability.filter({})
+        : [];
+      
+      const capabilityMap = new Map(capabilities.map(c => [c.id, c]));
+      
+      return successResponse(workerCapabilities.map(wc => {
+        const cap = capabilityMap.get(wc.capability_id) || {};
+        return {
+          id: wc.id,
+          capability_id: wc.capability_id,
+          capability_name: cap.name || null,
+          capability_icon: cap.icon || null,
+          capability_category: cap.category || null,
+          status: wc.status,
+          reputation_score: wc.reputation_score || 0,
+          total_tasks: wc.total_tasks || 0,
+          success_rate: wc.success_rate || 0,
+          verification_date: wc.verification_date,
+          last_used: wc.last_used
+        };
+      }), { count: workerCapabilities.length });
+    }
+
     // Claim a capability
     if (action === 'claim_capability') {
       const { capability_id } = body;
