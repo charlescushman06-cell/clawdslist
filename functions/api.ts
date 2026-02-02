@@ -2150,6 +2150,61 @@ Deno.serve(async (req) => {
       });
     }
     
+    // Claim a capability
+    if (action === 'claim_capability') {
+      const { capability_id } = body;
+      
+      if (!capability_id) {
+        return errorResponse('INVALID_PAYLOAD', 'capability_id required');
+      }
+      
+      // Check if capability exists
+      const capabilities = await base44.asServiceRole.entities.Capability.filter({ id: capability_id });
+      if (!capabilities || capabilities.length === 0) {
+        return errorResponse('INVALID_PAYLOAD', 'Capability not found');
+      }
+      
+      const capability = capabilities[0];
+      
+      // Check if worker already has this capability
+      const existingWorkerCaps = await base44.asServiceRole.entities.WorkerCapability.filter({
+        worker_id: worker.id,
+        capability_id: capability_id
+      });
+      
+      if (existingWorkerCaps.length > 0) {
+        return errorResponse('INVALID_PAYLOAD', 'Worker already has this capability');
+      }
+      
+      // Create new WorkerCapability record
+      const workerCapability = await base44.asServiceRole.entities.WorkerCapability.create({
+        worker_id: worker.id,
+        capability_id: capability_id,
+        status: 'pending',
+        reputation_score: 0,
+        total_tasks: 0,
+        success_rate: 0
+      });
+      
+      await logEvent(base44, 'capability_claimed', 'worker', worker.id, 'worker', worker.id, {
+        capability_id: capability_id,
+        capability_name: capability.name,
+        worker_capability_id: workerCapability.id
+      });
+      
+      return successResponse({
+        id: workerCapability.id,
+        worker_id: workerCapability.worker_id,
+        capability_id: workerCapability.capability_id,
+        capability_name: capability.name,
+        status: workerCapability.status,
+        reputation_score: workerCapability.reputation_score,
+        total_tasks: workerCapability.total_tasks,
+        success_rate: workerCapability.success_rate,
+        message: 'Capability claimed successfully. Verification pending.'
+      });
+    }
+
     return errorResponse('INVALID_PAYLOAD', 'Unknown action: ' + action);
     
   } catch (error) {
