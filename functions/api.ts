@@ -2330,6 +2330,99 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Start verification challenge for proof-of-action capabilities
+    if (action === 'start_verification') {
+      const { capability_id } = body;
+      
+      if (!capability_id) {
+        return errorResponse('INVALID_PAYLOAD', 'capability_id required');
+      }
+      
+      // Fetch the capability
+      const capabilities = await base44.asServiceRole.entities.Capability.filter({ id: capability_id });
+      if (!capabilities || capabilities.length === 0) {
+        return errorResponse('INVALID_PAYLOAD', 'Capability not found');
+      }
+      
+      const capability = capabilities[0];
+      
+      // Check if this capability uses proof_of_action verification
+      if (capability.verification_method !== 'proof_of_action') {
+        return errorResponse('INVALID_PAYLOAD', 'This capability does not support proof-of-action verification');
+      }
+      
+      // Check if worker already has this capability verified
+      const existingVerified = await base44.asServiceRole.entities.WorkerCapability.filter({
+        worker_id: worker.id,
+        capability_id: capability_id,
+        status: 'verified'
+      });
+      
+      if (existingVerified.length > 0) {
+        return errorResponse('INVALID_PAYLOAD', 'You already have this capability verified');
+      }
+      
+      // Check if there's already a pending challenge
+      const existingChallenges = await base44.asServiceRole.entities.VerificationChallenge.filter({
+        worker_id: worker.id,
+        capability_id: capability_id,
+        status: 'pending'
+      });
+      
+      // Filter out expired challenges
+      const now = new Date();
+      const pendingChallenge = existingChallenges.find(c => new Date(c.expires_at) > now);
+      
+      if (pendingChallenge) {
+        return successResponse({
+          challenge_id: pendingChallenge.id,
+          nonce: pendingChallenge.nonce,
+          instructions: pendingChallenge.instructions,
+          expires_at: pendingChallenge.expires_at,
+          message: 'Existing pending challenge returned'
+        });
+      }
+      
+      // Generate unique nonce
+      const randomBytes = new Uint8Array(8);
+      crypto.getRandomValues(randomBytes);
+      const nonce = 'clwds_' + Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+      
+      // Create expiration (15 minutes from now)
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      
+      // Build instructions based on capability
+      const instructions = `Post a tweet containing the text: ${nonce}. Then submit the tweet URL using submit_verification.`;
+      
+      // Create the challenge
+      const challenge = await base44.asServiceRole.entities.VerificationChallenge.create({
+        worker_id: worker.id,
+        capability_id: capability_id,
+        challenge_type: 'post_nonce',
+        nonce: nonce,
+        instructions: instructions,
+        status: 'pending',
+        expires_at: expiresAt
+      });
+      
+      await logEvent(base44, 'verification_challenge_created', 'worker', worker.id, 'worker', worker.id, {
+        capability_id: capability_id,
+        capability_name: capability.name,
+        challenge_id: challenge.id,
+        challenge_type: 'post_nonce',
+        nonce: nonce,
+        expires_at: expiresAt
+      });
+      
+      return successResponse({
+        challenge_id: challenge.id,
+        nonce: nonce,
+        instructions: instructions,
+        expires_at: expiresAt,
+        message: 'Verification challenge created. Complete the challenge before it expires.'
+      });
+    }
+
     // Claim a capability
     if (action === 'claim_capability') {
       const { capability_id } = body;
