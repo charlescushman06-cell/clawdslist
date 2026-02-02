@@ -842,6 +842,65 @@ Deno.serve(async (req) => {
       });
       }
     
+    // Admin-only: Reset a worker's capability (for testing verification flow)
+    if (action === 'admin_reset_capability') {
+      const user = await base44.auth.me();
+      if (!user || user.role !== 'admin') {
+        return errorResponse('WORKER_SUSPENDED', 'Admin access required');
+      }
+
+      const { worker_id, capability_id } = body;
+      
+      if (!worker_id || !capability_id) {
+        return errorResponse('INVALID_PAYLOAD', 'worker_id and capability_id required');
+      }
+      
+      // Find the WorkerCapability record
+      const workerCaps = await base44.asServiceRole.entities.WorkerCapability.filter({
+        worker_id: worker_id,
+        capability_id: capability_id
+      });
+      
+      if (workerCaps.length === 0) {
+        return errorResponse('INVALID_PAYLOAD', 'WorkerCapability not found for this worker/capability');
+      }
+      
+      const workerCapability = workerCaps[0];
+      
+      // Reset the WorkerCapability to pending
+      const updatedCap = await base44.asServiceRole.entities.WorkerCapability.update(workerCapability.id, {
+        status: 'pending',
+        verified_by: null,
+        verification_date: null
+      });
+      
+      // Delete any VerificationChallenge records for this worker/capability
+      const challenges = await base44.asServiceRole.entities.VerificationChallenge.filter({
+        worker_id: worker_id,
+        capability_id: capability_id
+      });
+      
+      for (const challenge of challenges) {
+        await base44.asServiceRole.entities.VerificationChallenge.delete(challenge.id);
+      }
+      
+      await logEvent(base44, 'capability_reset', 'worker', worker_id, 'admin', user.email, {
+        capability_id: capability_id,
+        challenges_deleted: challenges.length
+      });
+      
+      return successResponse({
+        id: updatedCap.id,
+        worker_id: updatedCap.worker_id,
+        capability_id: updatedCap.capability_id,
+        status: 'pending',
+        verified_by: null,
+        verification_date: null,
+        challenges_deleted: challenges.length,
+        message: 'Capability reset to pending status'
+      });
+    }
+
     // Admin-only: Verify a worker's capability (bootstrap first verified workers)
     if (action === 'admin_verify_capability') {
       const user = await base44.auth.me();
