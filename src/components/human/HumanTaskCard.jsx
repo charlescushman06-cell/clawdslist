@@ -158,21 +158,21 @@ export default function HumanTaskCard({ task, submissions, capabilities = [] }) 
 
   return (
     <>
-      <div className="bg-slate-900 border border-red-500/40 rounded-none p-3 sm:p-5 hover:border-red-500/70 shadow-[0_0_15px_rgba(239,68,68,0.15)] hover:shadow-[0_0_25px_rgba(239,68,68,0.25)] transition-all flex flex-col">
+      <div className="bg-white border border-red-200 rounded-2xl p-3 sm:p-5 hover:border-red-400 shadow-lg hover:shadow-xl transition-all flex flex-col">
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-sm sm:text-base font-semibold text-slate-100 truncate">{task.title}</h3>
+              <h3 className="text-sm sm:text-base font-semibold text-slate-800 truncate">{task.title}</h3>
             </div>
-            <p className="text-xs sm:text-sm text-slate-400 line-clamp-2">{task.description}</p>
+            <p className="text-xs sm:text-sm text-slate-600 line-clamp-2">{task.description}</p>
             {/* Required Capabilities */}
             {requiredCaps.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-2">
                 {requiredCaps.map(cap => (
                   <span 
                     key={cap.id}
-                    className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-black border border-slate-700 text-[9px] sm:text-[10px] font-mono text-slate-400"
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-red-50 border border-red-200 rounded text-[9px] sm:text-[10px] text-red-600"
                   >
                     <span>{cap.icon || '⚡'}</span>
                     <span className="uppercase tracking-wider">{cap.name}</span>
@@ -188,11 +188,11 @@ export default function HumanTaskCard({ task, submissions, capabilities = [] }) 
           </Badge>
         </div>
 
-        {/* Metadata - Trading Terminal Style */}
-        <div className="grid grid-cols-3 gap-px mb-3 bg-slate-800 border border-slate-700">
-          <div className="bg-black p-2 text-center">
+        {/* Metadata */}
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 text-center">
             <p className="text-[9px] sm:text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">REWARD</p>
-            <div className="font-mono text-green-400 text-xs sm:text-sm font-bold h-5 flex items-center justify-center">
+            <div className="text-green-600 text-xs sm:text-sm font-bold h-5 flex items-center justify-center">
               {task.reward && task.task_price_usd ? (
                 <span className={`transition-opacity duration-200 ${showEth ? 'opacity-100' : 'opacity-0 absolute'}`}>
                   {task.reward} <span className="text-slate-500 text-[10px]">ETH</span>
@@ -209,22 +209,22 @@ export default function HumanTaskCard({ task, submissions, capabilities = [] }) 
               )}
             </div>
           </div>
-          <div className="bg-black p-2 text-center">
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 text-center">
             <p className="text-[9px] sm:text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">STAKE</p>
-            <div className="font-mono text-yellow-400 text-xs sm:text-sm font-bold">
+            <div className="text-yellow-600 text-xs sm:text-sm font-bold">
               ${task.required_stake_usd || '0'}
             </div>
           </div>
-          <div className="bg-black p-2 text-center">
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 text-center">
             <p className="text-[9px] sm:text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">
               {(task.status === 'claimed' || (task.status === 'open' && (task.expires_at || task.deadline))) && timeRemaining !== null
                 ? (timeRemaining === 0 ? 'EXPIRED' : 'TTL')
                 : 'TIMEOUT'}
             </p>
-            <div className={`font-mono text-xs sm:text-sm font-bold ${
+            <div className={`text-xs sm:text-sm font-bold ${
               (task.status === 'claimed' || (task.status === 'open' && (task.expires_at || task.deadline))) && timeRemaining !== null
                 ? (timeRemaining === 0 ? 'text-red-500' : getTimeColor(timeRemaining))
-                : 'text-slate-400'
+                : 'text-slate-500'
             }`}>
               {(task.status === 'claimed' || (task.status === 'open' && (task.expires_at || task.deadline))) && timeRemaining !== null
                 ? (timeRemaining === 0 ? '--:--' : formatTimeRemaining(timeRemaining))
@@ -233,15 +233,15 @@ export default function HumanTaskCard({ task, submissions, capabilities = [] }) 
           </div>
         </div>
 
-        {/* Submissions Info - Trading Terminal Style */}
+        {/* Submissions Info */}
         {submissions.length > 0 && (
-          <div className="mb-3 bg-black border border-slate-700 flex">
-            <div className={`px-2 py-1.5 flex items-center gap-1.5 border-r border-slate-700 ${submissions.some(s => s.status === 'approved') ? 'text-green-400' : 'text-blue-400'}`}>
+          <div className="mb-3 bg-slate-50 border border-slate-200 rounded-lg flex">
+            <div className={`px-2 py-1.5 flex items-center gap-1.5 border-r border-slate-200 ${submissions.some(s => s.status === 'approved') ? 'text-green-600' : 'text-blue-600'}`}>
               <CheckCircle className="w-3.5 h-3.5" />
-              <span className="font-mono text-xs font-bold">{submissions.length}</span>
+              <span className="text-xs font-bold">{submissions.length}</span>
             </div>
             <div className="px-2 py-1.5 flex-1">
-              <span className="text-[10px] text-slate-500 uppercase tracking-wider">
+              <span className="text-[10px] text-slate-600 uppercase tracking-wider">
                 {submissions.some(s => s.status === 'approved') 
                   ? `${submissions.filter(s => s.status === 'approved').length} VERIFIED`
                   : `${submissions.filter(s => s.status === 'pending').length} PENDING`}
@@ -251,13 +251,13 @@ export default function HumanTaskCard({ task, submissions, capabilities = [] }) 
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-3 border-t border-slate-800 mt-auto">
+        <div className="flex items-center justify-between pt-3 border-t border-slate-200 mt-auto">
           <div className="text-[10px] sm:text-xs text-slate-500">
             {format(new Date(task.created_date), 'MMM d')}
           </div>
           <button 
             onClick={() => setShowDetails(true)}
-            className="bg-black border border-slate-700 hover:border-slate-500 px-3 py-1.5 text-[10px] sm:text-xs font-mono uppercase tracking-wider text-slate-400 hover:text-slate-200 transition-all flex items-center gap-1.5"
+            className="bg-red-500 hover:bg-red-600 px-3 py-1.5 text-[10px] sm:text-xs uppercase tracking-wider text-white rounded-lg transition-all flex items-center gap-1.5"
           >
             <Eye className="w-3 h-3" />
             <span>INSPECT</span>

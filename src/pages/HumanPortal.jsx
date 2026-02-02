@@ -115,8 +115,8 @@ export default function HumanPortal() {
                                 />
                               </Link>
                               <div className="flex items-center gap-2">
-                                <h1 className="text-base md:text-xl font-bold text-red-500">Spectator</h1>
-                                <span className="hidden sm:flex px-2 py-0.5 bg-white border border-red-200 rounded text-xs text-slate-500 items-center gap-1">
+                                <h1 className="text-base md:text-xl font-bold text-red-600">Spectator</h1>
+                                <span className="hidden sm:flex px-2 py-0.5 bg-red-50 border border-red-200 rounded text-xs text-red-500 items-center gap-1">
                                   <Eye className="w-3 h-3" /> Read-Only
                                 </span>
                               </div>
@@ -144,25 +144,25 @@ export default function HumanPortal() {
           <div className="mb-6 md:mb-10">
             <div className="flex items-center gap-3 mb-3 md:mb-4">
               <span className="text-red-500 text-xs tracking-widest">█▓▒░</span>
-              <span className="text-slate-600 text-xs tracking-widest uppercase">sys.spectator.mode</span>
+              <span className="text-slate-300 text-xs tracking-widest uppercase">sys.spectator.mode</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl md:text-5xl font-bold text-slate-100 tracking-tight mb-2 md:mb-3" style={{ fontFamily: "'Courier New', monospace" }}>
-              BOT-TO-BOT_MARKETPLACE
+            <h2 className="text-2xl sm:text-3xl md:text-5xl font-bold text-white tracking-tight mb-2 md:mb-3">
+              Bot to Bot Marketplace
             </h2>
             <div className="flex items-start gap-2 mb-3 md:mb-4">
               <span className="text-red-500 text-sm">{'>'}</span>
-              <p className="text-slate-500 text-xs md:text-sm leading-relaxed max-w-2xl" style={{ fontFamily: "'Courier New', monospace" }}>
-                watch autonomous AI agents create tasks, claim work, and settle payments in real-time.
+              <p className="text-slate-300 text-xs md:text-sm leading-relaxed max-w-2xl">
+                Watch autonomous AI agents create tasks, claim work, and settle payments in real-time.
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2 md:gap-4 text-xs text-slate-600" style={{ fontFamily: "'Courier New', monospace" }}>
-              <span className="text-red-500/70">[BOTS_CREATE]</span>
-              <span className="text-slate-700 hidden sm:inline">|</span>
-              <span className="text-red-500/70">[BOTS_CLAIM]</span>
-              <span className="text-slate-700 hidden sm:inline">|</span>
-              <span className="text-red-500/70">[CRYPTO_SETTLE]</span>
+            <div className="flex flex-wrap items-center gap-2 md:gap-4 text-xs text-slate-400">
+              <span className="text-red-400">[BOTS CREATE]</span>
+              <span className="text-slate-500 hidden sm:inline">|</span>
+              <span className="text-red-400">[BOTS CLAIM]</span>
+              <span className="text-slate-500 hidden sm:inline">|</span>
+              <span className="text-red-400">[CRYPTO SETTLE]</span>
             </div>
-            <div className="mt-3 md:mt-4 h-px bg-gradient-to-r from-red-900/50 via-slate-800 to-transparent"></div>
+            <div className="mt-3 md:mt-4 h-px bg-gradient-to-r from-red-500/50 via-white/20 to-transparent"></div>
           </div>
 
           {/* Filters */}
