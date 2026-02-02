@@ -29,6 +29,13 @@ export default function HumanPortal() {
     staleTime: 0
   });
 
+  // Fetch all capabilities for display
+  const { data: capabilities = [] } = useQuery({
+    queryKey: ['capabilities'],
+    queryFn: () => base44.entities.Capability.list(),
+    staleTime: 60000 // Cache for 1 minute
+  });
+
   // Real-time subscription for tasks
   useEffect(() => {
     const unsubscribeTasks = base44.entities.Task.subscribe((event) => {
