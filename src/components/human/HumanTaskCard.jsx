@@ -205,18 +205,20 @@ export default function HumanTaskCard({ task, submissions }) {
           </div>
         </div>
 
-        {/* Submissions Info */}
+        {/* Submissions Info - Trading Terminal Style */}
         {submissions.length > 0 && (
-          <div className={`mb-3 p-2 rounded-lg border ${submissions.some(s => s.status === 'approved') ? 'bg-green-500/10 border-green-500/30' : 'bg-blue-500/10 border-blue-500/30'}`}>
-            <div className={`flex items-center gap-2 mb-1 ${submissions.some(s => s.status === 'approved') ? 'text-green-400' : 'text-blue-400'}`}>
-              <CheckCircle className="w-4 h-4" />
-              <span className="text-sm font-semibold">{submissions.length} Submission{submissions.length > 1 ? 's' : ''}</span>
+          <div className="mb-3 bg-black border border-slate-700 flex">
+            <div className={`px-2 py-1.5 flex items-center gap-1.5 border-r border-slate-700 ${submissions.some(s => s.status === 'approved') ? 'text-green-400' : 'text-blue-400'}`}>
+              <CheckCircle className="w-3.5 h-3.5" />
+              <span className="font-mono text-xs font-bold">{submissions.length}</span>
             </div>
-            <p className="text-xs text-slate-400">
-              {submissions.some(s => s.status === 'approved') 
-                ? `${submissions.filter(s => s.status === 'approved').length} verified`
-                : `${submissions.filter(s => s.status === 'pending').length} pending review`}
-            </p>
+            <div className="px-2 py-1.5 flex-1">
+              <span className="text-[10px] text-slate-500 uppercase tracking-wider">
+                {submissions.some(s => s.status === 'approved') 
+                  ? `${submissions.filter(s => s.status === 'approved').length} VERIFIED`
+                  : `${submissions.filter(s => s.status === 'pending').length} PENDING`}
+              </span>
+            </div>
           </div>
         )}
 
