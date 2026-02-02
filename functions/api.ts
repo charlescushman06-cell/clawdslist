@@ -2423,6 +2423,121 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Submit verification proof for a challenge
+    if (action === 'submit_verification') {
+      const { challenge_id, proof_url } = body;
+      
+      if (!challenge_id) {
+        return errorResponse('INVALID_PAYLOAD', 'challenge_id required');
+      }
+      if (!proof_url) {
+        return errorResponse('INVALID_PAYLOAD', 'proof_url required');
+      }
+      
+      // Find the challenge
+      const challenges = await base44.asServiceRole.entities.VerificationChallenge.filter({ id: challenge_id });
+      if (!challenges || challenges.length === 0) {
+        return errorResponse('INVALID_PAYLOAD', 'Challenge not found');
+      }
+      
+      const challenge = challenges[0];
+      
+      // Verify challenge belongs to this worker
+      if (challenge.worker_id !== worker.id) {
+        return errorResponse('INVALID_PAYLOAD', 'This challenge does not belong to you');
+      }
+      
+      // Check challenge is pending
+      if (challenge.status !== 'pending') {
+        return errorResponse('INVALID_PAYLOAD', 'Challenge already processed');
+      }
+      
+      // Check challenge hasn't expired
+      const now = new Date();
+      if (new Date(challenge.expires_at) < now) {
+        // Mark as expired
+        await base44.asServiceRole.entities.VerificationChallenge.update(challenge.id, {
+          status: 'expired'
+        });
+        return errorResponse('INVALID_PAYLOAD', 'Challenge has expired');
+      }
+      
+      // Validate proof_url is a Twitter/X URL
+      const twitterUrlPattern = /^https?:\/\/(twitter\.com|x\.com)\/[^/]+\/status\/(\d+)/i;
+      const urlMatch = proof_url.match(twitterUrlPattern);
+      
+      if (!urlMatch) {
+        return errorResponse('INVALID_PAYLOAD', 'Invalid proof URL - must be a Twitter/X URL');
+      }
+      
+      const tweetId = urlMatch[2];
+      
+      // Update challenge to submitted
+      await base44.asServiceRole.entities.VerificationChallenge.update(challenge.id, {
+        status: 'submitted',
+        proof_url: proof_url,
+        proof_data: JSON.stringify({ tweet_id: tweetId })
+      });
+      
+      // Auto-verify since it's a valid Twitter URL
+      const verifiedAt = new Date().toISOString();
+      
+      await base44.asServiceRole.entities.VerificationChallenge.update(challenge.id, {
+        status: 'verified',
+        verified_at: verifiedAt
+      });
+      
+      // Find or create WorkerCapability
+      const existingCaps = await base44.asServiceRole.entities.WorkerCapability.filter({
+        worker_id: worker.id,
+        capability_id: challenge.capability_id
+      });
+      
+      if (existingCaps.length > 0) {
+        // Update existing
+        await base44.asServiceRole.entities.WorkerCapability.update(existingCaps[0].id, {
+          status: 'verified',
+          verified_by: 'system',
+          verification_date: verifiedAt
+        });
+      } else {
+        // Create new
+        await base44.asServiceRole.entities.WorkerCapability.create({
+          worker_id: worker.id,
+          capability_id: challenge.capability_id,
+          status: 'verified',
+          verified_by: 'system',
+          verification_date: verifiedAt,
+          reputation_score: 0,
+          total_tasks: 0,
+          success_rate: 0
+        });
+      }
+      
+      // Get capability name for response
+      const capabilities = await base44.asServiceRole.entities.Capability.filter({ id: challenge.capability_id });
+      const capabilityName = capabilities.length > 0 ? capabilities[0].name : null;
+      
+      await logEvent(base44, 'capability_verified', 'worker', worker.id, 'system', 'verification_challenge', {
+        challenge_id: challenge.id,
+        capability_id: challenge.capability_id,
+        capability_name: capabilityName,
+        proof_url: proof_url,
+        tweet_id: tweetId,
+        verified_at: verifiedAt
+      });
+      
+      return successResponse({
+        challenge_id: challenge.id,
+        capability_id: challenge.capability_id,
+        capability_name: capabilityName,
+        status: 'verified',
+        verified: true,
+        verified_at: verifiedAt,
+        message: 'Verification successful. Capability has been verified.'
+      });
+    }
+
     // Claim a capability
     if (action === 'claim_capability') {
       const { capability_id } = body;
