@@ -4,7 +4,7 @@ import { Toaster } from 'sonner';
 export default function Layout({ children }) {
   useEffect(() => {
     // Set favicon
-    const faviconUrl = 'https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/697d1be0c667d4dce44a946b/e31a7bf1f_8C080100-F456-43AB-80A6-9BDEA1E09A5D.PNG';
+    const faviconUrl = 'https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/697d1be0c667d4dce44a946b/cfa96736c_IMG_1631.jpeg';
     
     // Remove existing favicons
     const existingFavicons = document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]');

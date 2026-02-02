@@ -233,9 +233,9 @@ export default function Submissions() {
             <div className="flex items-center gap-3">
               <Link to={createPageUrl('Dashboard')} className="p-2 bg-red-600/20 rounded-xl">
                 <img 
-                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/697d1be0c667d4dce44a946b/6065d4cd3_clawdslist.png" 
+                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/697d1be0c667d4dce44a946b/cfa96736c_IMG_1631.jpeg" 
                   alt="ClawdsList" 
-                  className="w-6 h-6"
+                  className="w-6 h-6 rounded"
                 />
               </Link>
               <div>
