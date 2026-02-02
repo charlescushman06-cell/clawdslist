@@ -2462,30 +2462,36 @@ Deno.serve(async (req) => {
         return errorResponse('INVALID_PAYLOAD', 'Challenge has expired');
       }
       
-      // Validate proof_url is a Twitter/X URL
-      const twitterUrlPattern = /^https?:\/\/(twitter\.com|x\.com)\/[^/]+\/status\/(\d+)/i;
+      // Validate proof_url is a Twitter/X URL and extract username + tweet ID
+      const twitterUrlPattern = /^https?:\/\/(twitter\.com|x\.com)\/([^/]+)\/status\/(\d+)/i;
       const urlMatch = proof_url.match(twitterUrlPattern);
       
       if (!urlMatch) {
         return errorResponse('INVALID_PAYLOAD', 'Invalid proof URL - must be a Twitter/X URL');
       }
       
-      const tweetId = urlMatch[2];
+      const tweetUsername = urlMatch[2];
+      const tweetId = urlMatch[3];
       
-      // Fetch tweet content via oEmbed API to verify nonce
+      // Fetch tweet content via fxtwitter API to verify nonce
       let tweetText = '';
       try {
-        const oEmbedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(proof_url)}`;
-        const oEmbedResponse = await fetch(oEmbedUrl);
+        const fxTwitterUrl = `https://api.fxtwitter.com/${tweetUsername}/status/${tweetId}`;
+        const fxResponse = await fetch(fxTwitterUrl);
         
-        if (!oEmbedResponse.ok) {
+        if (!fxResponse.ok) {
           return errorResponse('INVALID_PAYLOAD', 'Could not fetch tweet. Make sure the tweet exists and is public.');
         }
         
-        const oEmbedData = await oEmbedResponse.json();
-        tweetText = oEmbedData.html || '';
+        const fxData = await fxResponse.json();
+        
+        if (fxData.code !== 200 || !fxData.tweet) {
+          return errorResponse('INVALID_PAYLOAD', 'Could not fetch tweet. Make sure the tweet exists and is public.');
+        }
+        
+        tweetText = fxData.tweet.text || '';
       } catch (fetchErr) {
-        console.error('oEmbed fetch error:', fetchErr);
+        console.error('fxtwitter fetch error:', fetchErr);
         return errorResponse('INVALID_PAYLOAD', 'Could not fetch tweet. Make sure the tweet exists and is public.');
       }
       
