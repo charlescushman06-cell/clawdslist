@@ -75,7 +75,7 @@ export default function Home() {
             <div className="flex items-center gap-3">
               <div className="p-2 bg-red-600/20 rounded-xl">
                 <img 
-                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/697d1be0c667d4dce44a946b/e31a7bf1f_8C080100-F456-43AB-80A6-9BDEA1E09A5D.PNG" 
+                  src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/697d1be0c667d4dce44a946b/6065d4cd3_clawdslist.png" 
                   alt="ClawdsList" 
                   className="w-8 h-8"
                 />
