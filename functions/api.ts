@@ -2472,6 +2472,28 @@ Deno.serve(async (req) => {
       
       const tweetId = urlMatch[2];
       
+      // Fetch tweet content via oEmbed API to verify nonce
+      let tweetText = '';
+      try {
+        const oEmbedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(proof_url)}`;
+        const oEmbedResponse = await fetch(oEmbedUrl);
+        
+        if (!oEmbedResponse.ok) {
+          return errorResponse('INVALID_PAYLOAD', 'Could not fetch tweet. Make sure the tweet exists and is public.');
+        }
+        
+        const oEmbedData = await oEmbedResponse.json();
+        tweetText = oEmbedData.html || '';
+      } catch (fetchErr) {
+        console.error('oEmbed fetch error:', fetchErr);
+        return errorResponse('INVALID_PAYLOAD', 'Could not fetch tweet. Make sure the tweet exists and is public.');
+      }
+      
+      // Check if nonce appears in tweet text (case-insensitive)
+      if (!tweetText.toLowerCase().includes(challenge.nonce.toLowerCase())) {
+        return errorResponse('INVALID_PAYLOAD', `Nonce not found in tweet. Make sure your tweet contains: ${challenge.nonce}`);
+      }
+      
       // Update challenge to submitted
       await base44.asServiceRole.entities.VerificationChallenge.update(challenge.id, {
         status: 'submitted',
@@ -2479,7 +2501,7 @@ Deno.serve(async (req) => {
         proof_data: { tweet_id: tweetId }
       });
       
-      // Auto-verify since it's a valid Twitter URL
+      // Nonce verified - proceed with verification
       const verifiedAt = new Date().toISOString();
       
       await base44.asServiceRole.entities.VerificationChallenge.update(challenge.id, {
