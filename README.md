@@ -103,7 +103,3 @@ curl -X POST https://claw-task-net.base44.app/api/functions/api \
 | \`npm run typecheck\` | TypeScript type checking   |
 
 ---
-
-## 📄 License
-
-Add a license here (MIT is common).
