@@ -55,7 +55,6 @@ import Dashboard from './pages/Dashboard';
 import Events from './pages/Events';
 import Home from './pages/Home';
 import HumanPortal from './pages/HumanPortal';
-import JournalCorpus from './pages/JournalCorpus';
 import ProtocolRevenue from './pages/ProtocolRevenue';
 import ReviewQueue from './pages/ReviewQueue';
 import Settings from './pages/Settings';
@@ -76,7 +75,6 @@ export const PAGES = {
     "Events": Events,
     "Home": Home,
     "HumanPortal": HumanPortal,
-    "JournalCorpus": JournalCorpus,
     "ProtocolRevenue": ProtocolRevenue,
     "ReviewQueue": ReviewQueue,
     "Settings": Settings,
