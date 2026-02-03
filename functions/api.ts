@@ -2502,13 +2502,10 @@ Deno.serve(async (req) => {
 
     // Submit verification proof for a challenge
     if (action === 'submit_verification') {
-      const { challenge_id, proof_url } = body;
+      const { challenge_id, proof_url, result_hash, elapsed_seconds } = body;
       
       if (!challenge_id) {
         return errorResponse('INVALID_PAYLOAD', 'challenge_id required');
-      }
-      if (!proof_url) {
-        return errorResponse('INVALID_PAYLOAD', 'proof_url required');
       }
       
       // Find the challenge
@@ -2537,6 +2534,106 @@ Deno.serve(async (req) => {
           status: 'expired'
         });
         return errorResponse('INVALID_PAYLOAD', 'Challenge has expired');
+      }
+      
+      // Handle GPU benchmark verification (run_benchmark challenge type)
+      if (challenge.challenge_type === 'run_benchmark') {
+        // Validate required params for benchmark
+        if (!result_hash) {
+          return errorResponse('INVALID_PAYLOAD', 'result_hash required for benchmark verification');
+        }
+        if (elapsed_seconds === undefined || elapsed_seconds === null) {
+          return errorResponse('INVALID_PAYLOAD', 'elapsed_seconds required for benchmark verification');
+        }
+        
+        const elapsedNum = Number(elapsed_seconds);
+        if (isNaN(elapsedNum) || elapsedNum < 0) {
+          return errorResponse('INVALID_PAYLOAD', 'elapsed_seconds must be a valid positive number');
+        }
+        if (elapsedNum >= 180) {
+          return errorResponse('INVALID_PAYLOAD', 'Benchmark took too long (max 180 seconds). GPU may not meet requirements.');
+        }
+        
+        // Time-based verification: reasonable GPU should complete in under 120 seconds
+        const isReasonableTime = elapsedNum < 120;
+        
+        if (!isReasonableTime) {
+          // Still allow but flag as slower GPU
+          console.log(`[submit_verification] GPU benchmark completed in ${elapsedNum}s (slower than ideal 120s threshold)`);
+        }
+        
+        const verifiedAt = new Date().toISOString();
+        const proofData = {
+          result_hash: result_hash,
+          elapsed_seconds: elapsedNum,
+          submitted_at: verifiedAt
+        };
+        
+        // Update challenge to verified
+        await base44.asServiceRole.entities.VerificationChallenge.update(challenge.id, {
+          status: 'verified',
+          proof_data: proofData,
+          verified_at: verifiedAt
+        });
+        
+        // Find or create WorkerCapability
+        const existingCaps = await base44.asServiceRole.entities.WorkerCapability.filter({
+          worker_id: worker.id,
+          capability_id: challenge.capability_id
+        });
+        
+        if (existingCaps.length > 0) {
+          await base44.asServiceRole.entities.WorkerCapability.update(existingCaps[0].id, {
+            status: 'verified',
+            verified_by: 'system',
+            verification_date: verifiedAt
+          });
+        } else {
+          await base44.asServiceRole.entities.WorkerCapability.create({
+            worker_id: worker.id,
+            capability_id: challenge.capability_id,
+            status: 'verified',
+            verified_by: 'system',
+            verification_date: verifiedAt,
+            reputation_score: 0,
+            total_tasks: 0,
+            success_rate: 0
+          });
+        }
+        
+        // Get capability name for response
+        const capabilities = await base44.asServiceRole.entities.Capability.filter({ id: challenge.capability_id });
+        const capabilityName = capabilities.length > 0 ? capabilities[0].name : null;
+        
+        await logEvent(base44, 'capability_verified', 'worker', worker.id, 'system', 'verification_challenge', {
+          challenge_id: challenge.id,
+          capability_id: challenge.capability_id,
+          capability_name: capabilityName,
+          challenge_type: 'run_benchmark',
+          result_hash: result_hash,
+          elapsed_seconds: elapsedNum,
+          verified_at: verifiedAt
+        });
+        
+        return successResponse({
+          challenge_id: challenge.id,
+          capability_id: challenge.capability_id,
+          capability_name: capabilityName,
+          status: 'verified',
+          verified: true,
+          verified_at: verifiedAt,
+          benchmark_result: {
+            result_hash: result_hash,
+            elapsed_seconds: elapsedNum,
+            performance_tier: elapsedNum < 60 ? 'high' : elapsedNum < 120 ? 'standard' : 'basic'
+          },
+          message: 'GPU benchmark verification successful. Capability has been verified.'
+        });
+      }
+      
+      // Handle Twitter/post_nonce verification (default)
+      if (!proof_url) {
+        return errorResponse('INVALID_PAYLOAD', 'proof_url required');
       }
       
       // Validate proof_url is a Twitter/X URL and extract username + tweet ID
