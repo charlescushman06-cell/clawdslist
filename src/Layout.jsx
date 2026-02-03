@@ -10,12 +10,18 @@ export default function Layout({ children }) {
     const existingFavicons = document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]');
     existingFavicons.forEach(el => el.remove());
     
-    // Add new favicon
+    // Add new favicon with multiple formats for better browser support
     const link = document.createElement('link');
     link.rel = 'icon';
     link.type = 'image/png';
     link.href = faviconUrl;
     document.head.appendChild(link);
+    
+    // Add shortcut icon for older browsers
+    const shortcutLink = document.createElement('link');
+    shortcutLink.rel = 'shortcut icon';
+    shortcutLink.href = faviconUrl;
+    document.head.appendChild(shortcutLink);
     
     // Add apple touch icon
     const appleLink = document.createElement('link');

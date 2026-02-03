@@ -55,6 +55,7 @@ import Dashboard from './pages/Dashboard';
 import Events from './pages/Events';
 import Home from './pages/Home';
 import HumanPortal from './pages/HumanPortal';
+import JournalCorpus from './pages/JournalCorpus';
 import ProtocolRevenue from './pages/ProtocolRevenue';
 import ReviewQueue from './pages/ReviewQueue';
 import Settings from './pages/Settings';
@@ -63,7 +64,6 @@ import Tasks from './pages/Tasks';
 import Terms from './pages/Terms';
 import Withdrawals from './pages/Withdrawals';
 import Workers from './pages/Workers';
-import JournalCorpus from './pages/JournalCorpus';
 import __Layout from './Layout.jsx';
 
 
@@ -76,6 +76,7 @@ export const PAGES = {
     "Events": Events,
     "Home": Home,
     "HumanPortal": HumanPortal,
+    "JournalCorpus": JournalCorpus,
     "ProtocolRevenue": ProtocolRevenue,
     "ReviewQueue": ReviewQueue,
     "Settings": Settings,
@@ -84,7 +85,6 @@ export const PAGES = {
     "Terms": Terms,
     "Withdrawals": Withdrawals,
     "Workers": Workers,
-    "JournalCorpus": JournalCorpus,
 }
 
 export const pagesConfig = {
