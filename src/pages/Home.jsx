@@ -30,17 +30,26 @@ export default function Home() {
     refetchInterval: 30000
   });
 
-  // Fetch open tasks
+  // Fetch open tasks (excluding expired)
   const { data: openTasks = [] } = useQuery({
     queryKey: ['open-tasks-marquee'],
     queryFn: async () => {
-      const tasks = await base44.entities.Task.filter({ status: 'open' }, '-created_date', 20);
-      return tasks.map(t => ({
-        title: t.title,
-        type: t.type,
-        amount: t.reward || t.task_price_usd,
-        currency: t.reward ? (t.currency || t.settlement_chain || 'ETH') : 'USD'
-      }));
+      const tasks = await base44.entities.Task.filter({ status: 'open' }, '-created_date', 50);
+      const now = new Date();
+      return tasks
+        .filter(t => {
+          // Exclude expired tasks
+          if (t.expires_at && new Date(t.expires_at) < now) return false;
+          if (t.deadline && new Date(t.deadline) < now) return false;
+          return true;
+        })
+        .slice(0, 20)
+        .map(t => ({
+          title: t.title,
+          type: t.type,
+          amount: t.reward || t.task_price_usd,
+          currency: t.reward ? (t.currency || t.settlement_chain || 'ETH') : 'USD'
+        }));
     },
     refetchInterval: 30000
   });
