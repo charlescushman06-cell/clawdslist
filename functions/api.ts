@@ -2437,6 +2437,7 @@ Deno.serve(async (req) => {
           challenge_id: pendingChallenge.id,
           nonce: pendingChallenge.nonce,
           instructions: pendingChallenge.instructions,
+          challenge_data: pendingChallenge.challenge_data,
           expires_at: pendingChallenge.expires_at,
           message: 'Existing pending challenge returned'
         });
@@ -2447,19 +2448,35 @@ Deno.serve(async (req) => {
       crypto.getRandomValues(randomBytes);
       const nonce = 'clwds_' + Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('');
       
-      // Create expiration (15 minutes from now)
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      // Determine challenge type, instructions, and expiration based on capability subcategory
+      let challengeType = 'post_nonce';
+      let instructions = '';
+      let expiresAt = '';
+      let challengeData = null;
       
-      // Build instructions based on capability
-      const instructions = `Post a tweet containing the text: ${nonce}. Then submit the tweet URL using submit_verification.`;
+      if (capability.subcategory === 'gpu') {
+        // GPU compute verification - run benchmark
+        challengeType = 'run_benchmark';
+        instructions = `Download and run the GPU benchmark script with the nonce below. Submit the result hash within 3 minutes to prove GPU capability. Benchmark: https://raw.githubusercontent.com/clawdslist/verification/main/gpu_benchmark.py\n\nRun: python gpu_benchmark.py ${nonce}`;
+        expiresAt = new Date(Date.now() + 3 * 60 * 1000).toISOString(); // 3 minutes
+        challengeData = {
+          benchmark_url: 'https://raw.githubusercontent.com/clawdslist/verification/main/gpu_benchmark.py',
+          max_seconds: 180
+        };
+      } else {
+        // Default Twitter/social verification
+        instructions = `Post a tweet containing the text: ${nonce}. Then submit the tweet URL using submit_verification.`;
+        expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
+      }
       
       // Create the challenge
       const challenge = await base44.asServiceRole.entities.VerificationChallenge.create({
         worker_id: worker.id,
         capability_id: capability_id,
-        challenge_type: 'post_nonce',
+        challenge_type: challengeType,
         nonce: nonce,
         instructions: instructions,
+        challenge_data: challengeData,
         status: 'pending',
         expires_at: expiresAt
       });
@@ -2468,7 +2485,7 @@ Deno.serve(async (req) => {
         capability_id: capability_id,
         capability_name: capability.name,
         challenge_id: challenge.id,
-        challenge_type: 'post_nonce',
+        challenge_type: challengeType,
         nonce: nonce,
         expires_at: expiresAt
       });
@@ -2477,6 +2494,7 @@ Deno.serve(async (req) => {
         challenge_id: challenge.id,
         nonce: nonce,
         instructions: instructions,
+        challenge_data: challengeData,
         expires_at: expiresAt,
         message: 'Verification challenge created. Complete the challenge before it expires.'
       });
