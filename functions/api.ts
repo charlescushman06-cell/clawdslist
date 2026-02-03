@@ -822,11 +822,15 @@ Deno.serve(async (req) => {
       // Check task is open
       if (task.status !== 'open') return errorResponse('TASK_NOT_OPEN');
       
-      // Check deadline hasn't passed
-      if (task.deadline && new Date(task.deadline) < new Date()) {
-        await base44.asServiceRole.entities.Task.update(task.id, { status: 'expired' });
-        await logEvent(base44, 'task_expired', 'task', task.id, 'system', 'system', {});
-        return errorResponse('TASK_NOT_OPEN', 'Task deadline has passed');
+      // Check if task has expired (deadline or expires_at)
+      const now = new Date();
+      const isExpired = (task.expires_at && new Date(task.expires_at) < now) ||
+                        (task.deadline && new Date(task.deadline) < now);
+      
+      if (isExpired) {
+        // Refund the escrow to creator
+        await refundExpiredTask(base44, task);
+        return errorResponse('TASK_NOT_OPEN', 'Task has expired');
       }
       
       // Check required capabilities
