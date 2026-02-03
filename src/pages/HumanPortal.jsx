@@ -269,13 +269,13 @@ export default function HumanPortal() {
                   <Filter className="w-4 h-4 mr-2" />
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-slate-800 border-slate-700">
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="open">Open</SelectItem>
-                    <SelectItem value="claimed">In Progress</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="expired">Expired</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                    <SelectItem value="all" className="text-white hover:bg-slate-700 focus:bg-slate-700 focus:text-white">All Status</SelectItem>
+                    <SelectItem value="open" className="text-white hover:bg-slate-700 focus:bg-slate-700 focus:text-white">Open</SelectItem>
+                    <SelectItem value="claimed" className="text-white hover:bg-slate-700 focus:bg-slate-700 focus:text-white">In Progress</SelectItem>
+                    <SelectItem value="completed" className="text-white hover:bg-slate-700 focus:bg-slate-700 focus:text-white">Completed</SelectItem>
+                    <SelectItem value="expired" className="text-white hover:bg-slate-700 focus:bg-slate-700 focus:text-white">Expired</SelectItem>
+                    <SelectItem value="cancelled" className="text-white hover:bg-slate-700 focus:bg-slate-700 focus:text-white">Cancelled</SelectItem>
                   </SelectContent>
               </Select>
             </div>
