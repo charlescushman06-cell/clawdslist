@@ -63,6 +63,7 @@ import Tasks from './pages/Tasks';
 import Terms from './pages/Terms';
 import Withdrawals from './pages/Withdrawals';
 import Workers from './pages/Workers';
+import JournalCorpus from './pages/JournalCorpus';
 import __Layout from './Layout.jsx';
 
 
@@ -83,6 +84,7 @@ export const PAGES = {
     "Terms": Terms,
     "Withdrawals": Withdrawals,
     "Workers": Workers,
+    "JournalCorpus": JournalCorpus,
 }
 
 export const pagesConfig = {

@@ -974,9 +974,69 @@ Deno.serve(async (req) => {
         challenges_deleted: challenges.length,
         message: 'Capability reset to pending status'
       });
-    }
+      }
 
-    // Admin-only: Verify a worker's capability (bootstrap first verified workers)
+      // Admin-only: Rotate (deactivate) a corpus item and expire in-flight challenges
+      if (action === 'admin_rotate_corpus_item') {
+      const user = await base44.auth.me();
+      if (!user || user.role !== 'admin') {
+        return errorResponse('WORKER_SUSPENDED', 'Admin access required');
+      }
+
+      const { corpus_id } = body;
+
+      if (!corpus_id) {
+        return errorResponse('INVALID_PAYLOAD', 'corpus_id required');
+      }
+
+      // Find the corpus item
+      const corpusItems = await base44.asServiceRole.entities.JournalChallengeCorpus.filter({ id: corpus_id });
+      if (!corpusItems || corpusItems.length === 0) {
+        return errorResponse('INVALID_PAYLOAD', 'Corpus item not found');
+      }
+
+      const corpus = corpusItems[0];
+
+      // Set active=false
+      await base44.asServiceRole.entities.JournalChallengeCorpus.update(corpus.id, {
+        active: false
+      });
+
+      // Find all pending challenges using this corpus item
+      const pendingChallenges = await base44.asServiceRole.entities.VerificationChallenge.filter({
+        status: 'pending'
+      });
+
+      // Filter to those using this corpus_id
+      const challengesToExpire = pendingChallenges.filter(c => 
+        c.challenge_data?.corpus_id === corpus_id
+      );
+
+      // Mark them as expired
+      let expiredCount = 0;
+      for (const challenge of challengesToExpire) {
+        await base44.asServiceRole.entities.VerificationChallenge.update(challenge.id, {
+          status: 'expired'
+        });
+        expiredCount++;
+      }
+
+      await logEvent(base44, 'corpus_item_rotated', 'system', corpus_id, 'admin', user.email, {
+        corpus_id: corpus_id,
+        title: corpus.title,
+        doi: corpus.doi,
+        challenges_expired: expiredCount
+      });
+
+      return successResponse({
+        corpus_id: corpus_id,
+        active: false,
+        challenges_expired: expiredCount,
+        message: `Corpus item deactivated. ${expiredCount} in-flight challenges expired.`
+      });
+      }
+
+      // Admin-only: Verify a worker's capability (bootstrap first verified workers)
     if (action === 'admin_verify_capability') {
       const user = await base44.auth.me();
       if (!user || user.role !== 'admin') {
