@@ -336,6 +336,147 @@ async function slashStake(base44, worker, task, milestoneId = null) {
   }
 }
 
+// ========== TASK EXPIRATION REFUND HELPER ==========
+
+/**
+ * Refund escrow for an expired task back to the creator's available balance.
+ * Returns { success: true, refunded: amount } or { success: false, reason: string }
+ */
+async function refundExpiredTask(base44, task) {
+  // Validate task is open and expired
+  if (task.status !== 'open') {
+    return { success: false, reason: 'Task is not open' };
+  }
+  
+  const now = new Date();
+  const isExpired = (task.expires_at && new Date(task.expires_at) < now) ||
+                    (task.deadline && new Date(task.deadline) < now);
+  
+  if (!isExpired) {
+    return { success: false, reason: 'Task has not expired' };
+  }
+  
+  // Already refunded?
+  if (task.escrow_status === 'refunded') {
+    return { success: true, already_refunded: true, refunded: '0' };
+  }
+  
+  const creatorId = task.creator_worker_id || task.payer_id;
+  if (!creatorId) {
+    return { success: false, reason: 'No creator/payer found for task' };
+  }
+  
+  const chain = task.currency || task.settlement_chain || 'ETH';
+  const escrowAmount = task.escrow_amount || task.reward;
+  
+  // Decimal math helpers
+  const toScaled = (amt) => {
+    if (!amt) return 0n;
+    const str = String(amt).trim();
+    if (!str || str === '0') return 0n;
+    if (!str.includes('.') && str.length > 15) return BigInt(str);
+    const [whole, frac = ''] = str.split('.');
+    return BigInt((whole || '0') + frac.padEnd(18, '0').slice(0, 18));
+  };
+  const fromScaled = (scaled) => {
+    const str = scaled.toString().padStart(19, '0');
+    const whole = str.slice(0, -18) || '0';
+    const frac = str.slice(-18).replace(/0+$/, '') || '0';
+    return frac === '0' ? whole : `${whole}.${frac}`;
+  };
+  
+  let refundedAmount = '0';
+  
+  // Refund crypto escrow
+  if (escrowAmount && toScaled(escrowAmount) > 0n && task.escrow_status === 'locked') {
+    // Get creator's LedgerAccount
+    const accounts = await base44.asServiceRole.entities.LedgerAccount.filter({
+      owner_type: 'worker',
+      owner_id: creatorId,
+      chain
+    });
+    
+    if (accounts.length > 0) {
+      const account = accounts[0];
+      const currentLocked = account.locked_balance || '0';
+      const currentAvailable = account.available_balance || '0';
+      
+      // Move from locked to available
+      const newLocked = fromScaled(
+        toScaled(currentLocked) > toScaled(escrowAmount) 
+          ? toScaled(currentLocked) - toScaled(escrowAmount)
+          : 0n
+      );
+      const newAvailable = fromScaled(toScaled(currentAvailable) + toScaled(escrowAmount));
+      
+      await base44.asServiceRole.entities.LedgerAccount.update(account.id, {
+        locked_balance: newLocked,
+        available_balance: newAvailable
+      });
+      
+      // Create ledger entry for the refund
+      await base44.asServiceRole.entities.LedgerEntry.create({
+        chain,
+        amount: escrowAmount,
+        entry_type: 'unlock',
+        from_owner_type: 'worker',
+        from_owner_id: creatorId,
+        to_owner_type: 'worker',
+        to_owner_id: creatorId,
+        related_task_id: task.id,
+        metadata: JSON.stringify({
+          action: 'task_expired_refund',
+          task_id: task.id,
+          task_title: task.title
+        })
+      });
+      
+      refundedAmount = escrowAmount;
+    }
+  }
+  
+  // Also handle legacy USD refund
+  if (task.task_price_usd > 0 && !escrowAmount) {
+    const ledgers = await base44.asServiceRole.entities.Ledger.filter({ worker_id: creatorId });
+    if (ledgers.length > 0) {
+      const ledger = ledgers[0];
+      await base44.asServiceRole.entities.Ledger.update(ledger.id, {
+        available_balance: (ledger.available_balance || 0) + task.task_price_usd,
+        locked_balance: Math.max(0, (ledger.locked_balance || 0) - task.task_price_usd)
+      });
+      
+      await base44.asServiceRole.entities.Transaction.create({
+        transaction_type: 'unlock',
+        worker_id: creatorId,
+        task_id: task.id,
+        amount_usd: task.task_price_usd,
+        balance_type: 'available',
+        notes: `Task expired, funds refunded: ${task.title}`
+      });
+      
+      refundedAmount = String(task.task_price_usd);
+    }
+  }
+  
+  // Update task status
+  await base44.asServiceRole.entities.Task.update(task.id, {
+    status: 'expired',
+    escrow_status: escrowAmount ? 'refunded' : task.escrow_status
+  });
+  
+  // Log event
+  await logEvent(base44, 'task_expired', 'task', task.id, 'system', 'system', {
+    task_title: task.title,
+    creator_id: creatorId,
+    refunded_amount: refundedAmount,
+    currency: chain,
+    expires_at: task.expires_at,
+    deadline: task.deadline
+  });
+  
+  return { success: true, refunded: refundedAmount, currency: chain };
+}
+
 async function transferPayment(base44, payerId, workerId, task, milestoneId = null) {
   const taskPrice = task.task_price_usd || task.total_price || 0;
   if (taskPrice <= 0) return;
