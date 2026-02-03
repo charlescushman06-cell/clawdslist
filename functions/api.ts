@@ -2392,46 +2392,53 @@ Deno.serve(async (req) => {
     // Start verification challenge for proof-of-action capabilities
     if (action === 'start_verification') {
       const { capability_id } = body;
-      
+
       if (!capability_id) {
         return errorResponse('INVALID_PAYLOAD', 'capability_id required');
       }
-      
+
       // Fetch the capability
       const capabilities = await base44.asServiceRole.entities.Capability.filter({ id: capability_id });
       if (!capabilities || capabilities.length === 0) {
         return errorResponse('INVALID_PAYLOAD', 'Capability not found');
       }
-      
+
       const capability = capabilities[0];
-      
+
       // Check if this capability uses proof_of_action verification
       if (capability.verification_method !== 'proof_of_action') {
         return errorResponse('INVALID_PAYLOAD', 'This capability does not support proof-of-action verification');
       }
-      
+
       // Check if worker already has this capability verified
       const existingVerified = await base44.asServiceRole.entities.WorkerCapability.filter({
         worker_id: worker.id,
         capability_id: capability_id,
         status: 'verified'
       });
-      
+
       if (existingVerified.length > 0) {
         return errorResponse('INVALID_PAYLOAD', 'You already have this capability verified');
       }
-      
-      // Check if there's already a pending challenge
+
+      // Check active challenge limit per worker per capability (max 3)
+      const MAX_ACTIVE_CHALLENGES = 3;
       const existingChallenges = await base44.asServiceRole.entities.VerificationChallenge.filter({
         worker_id: worker.id,
         capability_id: capability_id,
         status: 'pending'
       });
-      
-      // Filter out expired challenges
+
+      // Filter out expired challenges and count active ones
       const now = new Date();
-      const pendingChallenge = existingChallenges.find(c => new Date(c.expires_at) > now);
-      
+      const activeChallenges = existingChallenges.filter(c => new Date(c.expires_at) > now);
+
+      if (activeChallenges.length >= MAX_ACTIVE_CHALLENGES) {
+        return errorResponse('RATE_LIMITED', `Maximum ${MAX_ACTIVE_CHALLENGES} active challenges allowed per capability. Wait for existing challenges to expire.`);
+      }
+
+      // Return existing pending challenge if one exists
+      const pendingChallenge = activeChallenges[0];
       if (pendingChallenge) {
         return successResponse({
           challenge_id: pendingChallenge.id,
@@ -2439,23 +2446,66 @@ Deno.serve(async (req) => {
           instructions: pendingChallenge.instructions,
           challenge_data: pendingChallenge.challenge_data,
           expires_at: pendingChallenge.expires_at,
+          doi: pendingChallenge.challenge_data?.doi || null,
           message: 'Existing pending challenge returned'
         });
       }
-      
-      // Generate unique nonce
-      const randomBytes = new Uint8Array(8);
-      crypto.getRandomValues(randomBytes);
-      const nonce = 'clwds_' + Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('');
-      
-      // Determine challenge type, instructions, and expiration based on capability subcategory
+
+      // Generate unique nonce - 32 bytes hex for academic journals, shorter for others
+      let nonce;
       let challengeType = 'post_nonce';
       let instructions = '';
       let expiresAt = '';
       let challengeData = null;
-      
-      if (capability.subcategory === 'gpu') {
+
+      // Handle academic journals category
+      if (capability.category === 'academic_journals') {
+        // Generate 32 bytes cryptographically random nonce
+        const randomBytes32 = new Uint8Array(32);
+        crypto.getRandomValues(randomBytes32);
+        nonce = Array.from(randomBytes32).map(b => b.toString(16).padStart(2, '0')).join('');
+
+        // Select random active corpus row matching source
+        const corpusRows = await base44.asServiceRole.entities.JournalChallengeCorpus.filter({
+          source: capability.subcategory,
+          active: true
+        });
+
+        if (!corpusRows || corpusRows.length === 0) {
+          return errorResponse('INVALID_PAYLOAD', `No active challenge corpus available for source: ${capability.subcategory}`);
+        }
+
+        // Select random corpus entry
+        const corpus = corpusRows[Math.floor(Math.random() * corpusRows.length)];
+
+        // Determine challenge type based on available expected hashes
+        if (corpus.expected_sha256_pdf) {
+          challengeType = 'journal_pdf_sha256';
+          instructions = `Verify your ${capability.name} access by downloading the PDF for DOI: ${corpus.doi}\n\nCompute SHA256 hash of: nonce + pdf_bytes\nNonce: ${nonce}\n\nSubmit the resulting SHA256 hash (hex format) using submit_verification with result_hash parameter.`;
+        } else {
+          challengeType = 'journal_derived_sha256';
+          instructions = `Verify your ${capability.name} access by fetching the article for DOI: ${corpus.doi}\n\nExtract the abstract text, then compute SHA256 hash of: nonce + abstract_text\nNonce: ${nonce}\n\nSubmit the resulting SHA256 hash (hex format) using submit_verification with result_hash parameter.`;
+        }
+
+        expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
+
+        challengeData = {
+          corpus_id: corpus.id,
+          source: corpus.source,
+          doi: corpus.doi,
+          title: corpus.title,
+          nonce: nonce,
+          response_format: 'sha256_hex',
+          max_attempts: 3,
+          challenge_version: corpus.challenge_version
+        };
+
+      } else if (capability.subcategory === 'gpu') {
         // GPU compute verification - run benchmark
+        const randomBytes8 = new Uint8Array(8);
+        crypto.getRandomValues(randomBytes8);
+        nonce = 'clwds_' + Array.from(randomBytes8).map(b => b.toString(16).padStart(2, '0')).join('');
+
         challengeType = 'run_benchmark';
         instructions = `Download and run the GPU benchmark script with the nonce below. Submit the result hash within 3 minutes to prove GPU capability. Benchmark: https://raw.githubusercontent.com/clawdslist/verification/main/gpu_benchmark.py\n\nRun: python gpu_benchmark.py ${nonce}`;
         expiresAt = new Date(Date.now() + 3 * 60 * 1000).toISOString(); // 3 minutes
@@ -2465,10 +2515,14 @@ Deno.serve(async (req) => {
         };
       } else {
         // Default Twitter/social verification
+        const randomBytes8 = new Uint8Array(8);
+        crypto.getRandomValues(randomBytes8);
+        nonce = 'clwds_' + Array.from(randomBytes8).map(b => b.toString(16).padStart(2, '0')).join('');
+
         instructions = `Post a tweet containing the text: ${nonce}. Then submit the tweet URL using submit_verification.`;
         expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
       }
-      
+
       // Create the challenge
       const challenge = await base44.asServiceRole.entities.VerificationChallenge.create({
         worker_id: worker.id,
@@ -2478,24 +2532,28 @@ Deno.serve(async (req) => {
         instructions: instructions,
         challenge_data: challengeData,
         status: 'pending',
+        attempt_count: 0,
         expires_at: expiresAt
       });
-      
+
       await logEvent(base44, 'verification_challenge_created', 'worker', worker.id, 'worker', worker.id, {
         capability_id: capability_id,
         capability_name: capability.name,
         challenge_id: challenge.id,
         challenge_type: challengeType,
         nonce: nonce,
-        expires_at: expiresAt
+        expires_at: expiresAt,
+        corpus_id: challengeData?.corpus_id || null,
+        doi: challengeData?.doi || null
       });
-      
+
       return successResponse({
         challenge_id: challenge.id,
         nonce: nonce,
         instructions: instructions,
         challenge_data: challengeData,
         expires_at: expiresAt,
+        doi: challengeData?.doi || null,
         message: 'Verification challenge created. Complete the challenge before it expires.'
       });
     }
