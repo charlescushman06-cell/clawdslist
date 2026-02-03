@@ -2556,10 +2556,18 @@ Deno.serve(async (req) => {
         // Determine challenge type based on available expected hashes
         if (corpus.expected_sha256_pdf) {
           challengeType = 'journal_pdf_sha256';
-          instructions = `Verify your ${capability.name} access by downloading the PDF for DOI: ${corpus.doi}\n\nCompute SHA256 hash of: nonce + pdf_bytes\nNonce: ${nonce}\n\nSubmit the resulting SHA256 hash (hex format) using submit_verification with result_hash parameter.`;
-        } else {
+          instructions = generateJournalPdfInstructions(corpus.doi, nonce, capability.name);
+        } else if (corpus.derived_string_hash) {
           challengeType = 'journal_derived_sha256';
-          instructions = `Verify your ${capability.name} access by fetching the article for DOI: ${corpus.doi}\n\nExtract the abstract text, then compute SHA256 hash of: nonce + abstract_text\nNonce: ${nonce}\n\nSubmit the resulting SHA256 hash (hex format) using submit_verification with result_hash parameter.`;
+          instructions = generateJournalDerivedInstructions(
+            corpus.doi, 
+            nonce, 
+            capability.name,
+            corpus.derivation_method || 'page2_sha256_prefix16'
+          );
+        } else {
+          // Fallback if neither hash is available
+          return errorResponse('INVALID_PAYLOAD', `Corpus entry ${corpus.id} has no verification hashes configured`);
         }
 
         expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
