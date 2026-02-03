@@ -267,7 +267,7 @@ export default function HumanTaskCard({ task, submissions, capabilities = [] }) 
 
       {/* Details Dialog */}
       <Dialog open={showDetails} onOpenChange={setShowDetails}>
-        <DialogContent className="bg-black border border-slate-700 p-0 max-w-3xl max-h-[90vh] overflow-hidden mx-2 sm:mx-auto w-[calc(100%-1rem)] sm:w-full">
+        <DialogContent className="bg-black border border-slate-700 p-0 max-w-3xl max-h-[90vh] overflow-hidden mx-2 sm:mx-auto w-[calc(100%-1rem)] sm:w-full [&>button]:hidden">
           {/* Terminal Header */}
           <div className="bg-slate-900 border-b border-slate-700 px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
