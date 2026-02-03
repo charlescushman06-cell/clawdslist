@@ -18,11 +18,7 @@ const SECURITY_CONFIG = {
     'clawds-list.org'
   ],
   // Enable strict origin checking (disable for testing)
-  ENFORCE_ORIGIN: Deno.env.get('ENFORCE_ORIGIN') !== 'false',
-  // Global rate limit per minute for unauthenticated requests
-  GLOBAL_RATE_LIMIT_PER_MIN: parseInt(Deno.env.get('GLOBAL_RATE_LIMIT_PER_MIN') || '30', 10),
-  // Per-worker rate limit tracking window (ms)
-  RATE_LIMIT_WINDOW_MS: 60000
+  ENFORCE_ORIGIN: Deno.env.get('ENFORCE_ORIGIN') !== 'false'
 };
 
 
