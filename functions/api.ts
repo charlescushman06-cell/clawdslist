@@ -158,6 +158,81 @@ function calculateReputation(completed, rejected, expired) {
   return Math.max(0, Math.min(100, Math.round(successRate * 100 - penaltyRate * 20)));
 }
 
+// ========== JOURNAL VERIFICATION HELPERS ==========
+
+/**
+ * Generate instructions for journal_pdf_sha256 challenges
+ */
+function generateJournalPdfInstructions(doi, nonce, capabilityName) {
+  return `Verify your ${capabilityName} access by downloading the PDF for DOI: ${doi}
+
+INSTRUCTIONS:
+1. Download the PDF file for the article (do NOT use text extraction)
+2. Read the raw PDF bytes
+3. Compute: SHA256(nonce_bytes + pdf_bytes)
+   - nonce_bytes = UTF-8 encoding of: ${nonce}
+4. Submit the resulting hash as lowercase hex (64 characters)
+
+IMPORTANT:
+- Use the raw PDF bytes, not extracted text
+- Do NOT upload the PDF - only submit the SHA256 hash
+- Hash format: lowercase hexadecimal (e.g., "a1b2c3d4...")
+
+Submit using: submit_verification with result_hash parameter`;
+}
+
+/**
+ * Generate instructions for journal_derived_sha256 challenges
+ * Uses a deterministic derived string that requires actual document access
+ */
+function generateJournalDerivedInstructions(doi, nonce, capabilityName, derivationMethod) {
+  const methodInstructions = {
+    'page2_sha256_prefix16': `Extract the normalized text content of page 2 (second page) of the PDF.
+   - Normalize: lowercase, remove all whitespace and punctuation
+   - Compute: first_16_chars_of( SHA256(normalized_page2_text) )`,
+    'abstract_sha256_prefix16': `Extract the full abstract text from the article.
+   - Normalize: lowercase, remove all whitespace and punctuation  
+   - Compute: first_16_chars_of( SHA256(normalized_abstract) )`,
+    'custom': `Follow the specific derivation method for this corpus entry.`
+  };
+
+  const derivationInstr = methodInstructions[derivationMethod] || methodInstructions['page2_sha256_prefix16'];
+
+  return `Verify your ${capabilityName} access by proving you can read the article for DOI: ${doi}
+
+INSTRUCTIONS:
+1. Access the full article/PDF
+2. Derive the secret string:
+   ${derivationInstr}
+   This gives you the "derived_string" (16 hex characters)
+
+3. Compute the final proof:
+   SHA256(derived_string + nonce)
+   - derived_string = the 16-char hex string from step 2
+   - nonce = ${nonce}
+   - Concatenate as strings, then hash
+
+4. Submit the result as lowercase hex (64 characters)
+
+IMPORTANT:
+- Do NOT upload any document content
+- Only submit the final SHA256 hash
+- The derived_string proves you accessed the actual document
+
+Submit using: submit_verification with result_hash parameter`;
+}
+
+/**
+ * Compute SHA256 hash of a string, return lowercase hex
+ */
+async function sha256Hex(input) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(input);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 async function getOrCreateLedger(base44, workerId) {
   const ledgers = await base44.asServiceRole.entities.Ledger.filter({ worker_id: workerId });
   if (ledgers && ledgers.length > 0) return ledgers[0];
