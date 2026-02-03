@@ -115,24 +115,108 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action } = body;
 
-    // GET protocol balances by chain
+    // GET protocol balances by chain - fetches ACTUAL on-chain balances from treasury wallets
     if (action === 'get_balances') {
+      const TATUM_API_KEY_MAINNET = Deno.env.get('TATUM_API_KEY_MAINNET');
+      
+      // Get treasury addresses from ProtocolConfig
+      const configs = await base44.asServiceRole.entities.ProtocolConfig.filter({
+        config_key: 'treasury_addresses'
+      });
+      
+      const treasuryConfig = configs.length > 0 ? configs[0] : null;
+      const ethTreasuryAddress = treasuryConfig?.eth_treasury_address;
+      const btcTreasuryAddress = treasuryConfig?.btc_treasury_address;
+      
+      // Also get internal ledger for comparison
       const accounts = await base44.asServiceRole.entities.LedgerAccount.filter({
         owner_type: 'protocol'
       });
-
-      const balances = {};
+      
+      const ledgerBalances = {};
       for (const account of accounts) {
-        balances[account.chain] = {
+        ledgerBalances[account.chain] = {
           available_balance: account.available_balance || '0',
-          locked_balance: account.locked_balance || '0',
-          updated_at: account.updated_date
+          locked_balance: account.locked_balance || '0'
         };
       }
 
-      // Ensure both chains are present
-      if (!balances.ETH) balances.ETH = { available_balance: '0', locked_balance: '0' };
-      if (!balances.BTC) balances.BTC = { available_balance: '0', locked_balance: '0' };
+      const balances = {
+        ETH: { 
+          available_balance: '0', 
+          locked_balance: '0',
+          on_chain_balance: '0',
+          ledger_balance: ledgerBalances.ETH?.available_balance || '0',
+          treasury_address: ethTreasuryAddress || null
+        },
+        BTC: { 
+          available_balance: '0', 
+          locked_balance: '0',
+          on_chain_balance: '0',
+          ledger_balance: ledgerBalances.BTC?.available_balance || '0',
+          treasury_address: btcTreasuryAddress || null
+        }
+      };
+
+      // Fetch actual on-chain ETH balance from treasury address
+      if (ethTreasuryAddress && TATUM_API_KEY_MAINNET) {
+        try {
+          const ethResponse = await fetch(
+            `https://api.tatum.io/v3/ethereum/account/balance/${ethTreasuryAddress}`,
+            {
+              method: 'GET',
+              headers: { 'x-api-key': TATUM_API_KEY_MAINNET }
+            }
+          );
+          
+          if (ethResponse.ok) {
+            const ethData = await ethResponse.json();
+            // Tatum returns balance in wei for ETH, need to convert
+            const balanceWei = ethData.balance || '0';
+            // Convert wei to ETH (divide by 10^18)
+            const balanceEth = (BigInt(balanceWei) / BigInt(10 ** 18)).toString();
+            const remainderWei = BigInt(balanceWei) % BigInt(10 ** 18);
+            const decimalPart = remainderWei.toString().padStart(18, '0').replace(/0+$/, '');
+            const onChainBalance = decimalPart ? `${balanceEth}.${decimalPart}` : balanceEth;
+            
+            balances.ETH.on_chain_balance = onChainBalance;
+            balances.ETH.available_balance = onChainBalance; // Use on-chain as source of truth
+          }
+        } catch (err) {
+          console.error('Failed to fetch ETH balance from Tatum:', err);
+        }
+      }
+
+      // Fetch actual on-chain BTC balance from treasury address
+      if (btcTreasuryAddress && TATUM_API_KEY_MAINNET) {
+        try {
+          const btcResponse = await fetch(
+            `https://api.tatum.io/v3/bitcoin/address/balance/${btcTreasuryAddress}`,
+            {
+              method: 'GET',
+              headers: { 'x-api-key': TATUM_API_KEY_MAINNET }
+            }
+          );
+          
+          if (btcResponse.ok) {
+            const btcData = await btcResponse.json();
+            // Tatum returns incoming/outgoing for BTC
+            const incomingSat = BigInt(btcData.incoming || '0');
+            const outgoingSat = BigInt(btcData.outgoing || '0');
+            const balanceSat = incomingSat - outgoingSat;
+            // Convert satoshis to BTC (divide by 10^8)
+            const balanceBtc = (balanceSat / BigInt(10 ** 8)).toString();
+            const remainderSat = balanceSat % BigInt(10 ** 8);
+            const decimalPart = remainderSat.toString().padStart(8, '0').replace(/0+$/, '');
+            const onChainBalance = decimalPart ? `${balanceBtc}.${decimalPart}` : balanceBtc;
+            
+            balances.BTC.on_chain_balance = onChainBalance;
+            balances.BTC.available_balance = onChainBalance; // Use on-chain as source of truth
+          }
+        } catch (err) {
+          console.error('Failed to fetch BTC balance from Tatum:', err);
+        }
+      }
 
       return Response.json(balances);
     }
