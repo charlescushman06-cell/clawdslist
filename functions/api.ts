@@ -3298,6 +3298,49 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Process expired tasks (batch refund)
+    if (action === 'process_expired_tasks') {
+      const now = new Date();
+      
+      // Find all open tasks that have expired
+      const openTasks = await base44.asServiceRole.entities.Task.filter({ status: 'open' });
+      
+      const expiredTasks = openTasks.filter(t => {
+        const expiresExpired = t.expires_at && new Date(t.expires_at) < now;
+        const deadlineExpired = t.deadline && new Date(t.deadline) < now;
+        return expiresExpired || deadlineExpired;
+      });
+      
+      let processedCount = 0;
+      let refundedTotal = {};
+      const results = [];
+      
+      for (const task of expiredTasks) {
+        const refundResult = await refundExpiredTask(base44, task);
+        if (refundResult.success) {
+          processedCount++;
+          const currency = refundResult.currency || 'ETH';
+          if (!refundedTotal[currency]) refundedTotal[currency] = 0;
+          refundedTotal[currency] += parseFloat(refundResult.refunded || 0);
+          
+          results.push({
+            task_id: task.id,
+            title: task.title,
+            refunded: refundResult.refunded,
+            currency: currency,
+            already_refunded: refundResult.already_refunded || false
+          });
+        }
+      }
+      
+      return successResponse({
+        processed_count: processedCount,
+        total_expired_found: expiredTasks.length,
+        refunded_totals: refundedTotal,
+        tasks: results
+      });
+    }
+
     // Claim a capability
     if (action === 'claim_capability') {
       const { capability_id } = body;
