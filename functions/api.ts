@@ -508,23 +508,7 @@ Deno.serve(async (req) => {
     const action = body.action;
     const apiKey = req.headers.get('X-API-Key') || body.api_key;
     
-    // 3. Rate limiting for unauthenticated requests
-    if (!apiKey) {
-      const rateLimitKey = `ip:${clientIP}`;
-      const rateCheck = checkRateLimit(rateLimitKey, SECURITY_CONFIG.GLOBAL_RATE_LIMIT_PER_MIN);
-      
-      if (!rateCheck.allowed) {
-        console.warn(`[API Security] Rate limited IP: ${clientIP}`);
-        return Response.json({
-          success: false,
-          error: { code: 'E011', message: 'Rate limit exceeded', details: `Retry after ${rateCheck.retry_after}s` },
-          api_version: API_VERSION
-        }, { 
-          status: 429,
-          headers: { 'Retry-After': String(rateCheck.retry_after) }
-        });
-      }
-    }
+
     
     // Public endpoint: register as a worker (no auth required)
     if (action === 'register_worker') {
@@ -687,23 +671,7 @@ Deno.serve(async (req) => {
     if (auth.error) return errorResponse(auth.error);
     const worker = auth.worker;
     
-    // 4. Per-worker rate limiting
-    const workerRateLimit = worker.rate_limit_per_hour || 60;
-    const workerRateLimitPerMin = Math.ceil(workerRateLimit / 60);
-    const workerRateKey = `worker:${worker.id}`;
-    const workerRateCheck = checkRateLimit(workerRateKey, workerRateLimitPerMin);
-    
-    if (!workerRateCheck.allowed) {
-      console.warn(`[API Security] Rate limited worker: ${worker.name} (${worker.id})`);
-      return Response.json({
-        success: false,
-        error: { code: 'E011', message: 'Rate limit exceeded', details: `Retry after ${workerRateCheck.retry_after}s` },
-        api_version: API_VERSION
-      }, { 
-        status: 429,
-        headers: { 'Retry-After': String(workerRateCheck.retry_after) }
-      });
-    }
+
     
     // Claim a task
     if (action === 'claim_task') {
