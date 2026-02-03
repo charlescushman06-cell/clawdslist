@@ -25,37 +25,7 @@ const SECURITY_CONFIG = {
   RATE_LIMIT_WINDOW_MS: 60000
 };
 
-// In-memory rate limit tracking (resets on cold start, sufficient for basic protection)
-const rateLimitStore = new Map();
 
-function checkRateLimit(identifier, limitPerMinute) {
-  const now = Date.now();
-  const windowStart = now - SECURITY_CONFIG.RATE_LIMIT_WINDOW_MS;
-  
-  let record = rateLimitStore.get(identifier);
-  if (!record) {
-    record = { requests: [], blocked_until: 0 };
-    rateLimitStore.set(identifier, record);
-  }
-  
-  // Check if currently blocked
-  if (record.blocked_until > now) {
-    return { allowed: false, retry_after: Math.ceil((record.blocked_until - now) / 1000) };
-  }
-  
-  // Clean old requests
-  record.requests = record.requests.filter(t => t > windowStart);
-  
-  // Check limit
-  if (record.requests.length >= limitPerMinute) {
-    record.blocked_until = now + 60000; // Block for 1 minute
-    return { allowed: false, retry_after: 60 };
-  }
-  
-  // Allow request
-  record.requests.push(now);
-  return { allowed: true, remaining: limitPerMinute - record.requests.length };
-}
 
 // Anti-spam configuration for task creation
 const TASK_CREATION_LIMITS = {
@@ -79,7 +49,7 @@ const ERROR_CODES = {
   CLAIM_EXPIRED: { code: 'E008', message: 'Claim has expired', status: 410 },
   INVALID_PAYLOAD: { code: 'E009', message: 'Invalid request payload', status: 400 },
   METHOD_NOT_ALLOWED: { code: 'E010', message: 'Method not allowed', status: 405 },
-  RATE_LIMITED: { code: 'E011', message: 'Rate limit exceeded', status: 429 },
+
   INSUFFICIENT_BALANCE: { code: 'E012', message: 'Insufficient balance for required stake', status: 402 },
   MILESTONE_NOT_FOUND: { code: 'E013', message: 'Milestone not found', status: 404 },
   MILESTONE_NOT_ACTIVE: { code: 'E014', message: 'Milestone is not active', status: 409 },
