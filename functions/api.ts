@@ -124,69 +124,7 @@ function calculateReputation(completed, rejected, expired) {
   return Math.max(0, Math.min(100, Math.round(successRate * 100 - penaltyRate * 20)));
 }
 
-// ========== JOURNAL VERIFICATION HELPERS ==========
-
-/**
- * Generate instructions for journal_pdf_sha256 challenges
- */
-function generateJournalPdfInstructions(doi, nonce, capabilityName) {
-  return `Verify your ${capabilityName} access by downloading the PDF for DOI: ${doi}
-
-INSTRUCTIONS:
-1. Download the PDF file for the article (do NOT use text extraction)
-2. Read the raw PDF bytes
-3. Compute: SHA256(nonce_bytes + pdf_bytes)
-   - nonce_bytes = UTF-8 encoding of: ${nonce}
-4. Submit the resulting hash as lowercase hex (64 characters)
-
-IMPORTANT:
-- Use the raw PDF bytes, not extracted text
-- Do NOT upload the PDF - only submit the SHA256 hash
-- Hash format: lowercase hexadecimal (e.g., "a1b2c3d4...")
-
-Submit using: submit_verification with result_hash parameter`;
-}
-
-/**
- * Generate instructions for journal_derived_sha256 challenges
- * Uses a deterministic derived string that requires actual document access
- */
-function generateJournalDerivedInstructions(doi, nonce, capabilityName, derivationMethod) {
-  const methodInstructions = {
-    'page2_sha256_prefix16': `Extract the normalized text content of page 2 (second page) of the PDF.
-   - Normalize: lowercase, remove all whitespace and punctuation
-   - Compute: first_16_chars_of( SHA256(normalized_page2_text) )`,
-    'abstract_sha256_prefix16': `Extract the full abstract text from the article.
-   - Normalize: lowercase, remove all whitespace and punctuation  
-   - Compute: first_16_chars_of( SHA256(normalized_abstract) )`,
-    'custom': `Follow the specific derivation method for this corpus entry.`
-  };
-
-  const derivationInstr = methodInstructions[derivationMethod] || methodInstructions['page2_sha256_prefix16'];
-
-  return `Verify your ${capabilityName} access by proving you can read the article for DOI: ${doi}
-
-INSTRUCTIONS:
-1. Access the full article/PDF
-2. Derive the secret string:
-   ${derivationInstr}
-   This gives you the "derived_string" (16 hex characters)
-
-3. Compute the final proof:
-   SHA256(derived_string + nonce)
-   - derived_string = the 16-char hex string from step 2
-   - nonce = ${nonce}
-   - Concatenate as strings, then hash
-
-4. Submit the result as lowercase hex (64 characters)
-
-IMPORTANT:
-- Do NOT upload any document content
-- Only submit the final SHA256 hash
-- The derived_string proves you accessed the actual document
-
-Submit using: submit_verification with result_hash parameter`;
-}
+// ========== VERIFICATION HELPERS ==========
 
 /**
  * Compute SHA256 hash of a string, return lowercase hex
@@ -1052,66 +990,6 @@ Deno.serve(async (req) => {
         verification_date: null,
         challenges_deleted: challenges.length,
         message: 'Capability reset to pending status'
-      });
-      }
-
-      // Admin-only: Rotate (deactivate) a corpus item and expire in-flight challenges
-      if (action === 'admin_rotate_corpus_item') {
-      const user = await base44.auth.me();
-      if (!user || user.role !== 'admin') {
-        return errorResponse('WORKER_SUSPENDED', 'Admin access required');
-      }
-
-      const { corpus_id } = body;
-
-      if (!corpus_id) {
-        return errorResponse('INVALID_PAYLOAD', 'corpus_id required');
-      }
-
-      // Find the corpus item
-      const corpusItems = await base44.asServiceRole.entities.JournalChallengeCorpus.filter({ id: corpus_id });
-      if (!corpusItems || corpusItems.length === 0) {
-        return errorResponse('INVALID_PAYLOAD', 'Corpus item not found');
-      }
-
-      const corpus = corpusItems[0];
-
-      // Set active=false
-      await base44.asServiceRole.entities.JournalChallengeCorpus.update(corpus.id, {
-        active: false
-      });
-
-      // Find all pending challenges using this corpus item
-      const pendingChallenges = await base44.asServiceRole.entities.VerificationChallenge.filter({
-        status: 'pending'
-      });
-
-      // Filter to those using this corpus_id
-      const challengesToExpire = pendingChallenges.filter(c => 
-        c.challenge_data?.corpus_id === corpus_id
-      );
-
-      // Mark them as expired
-      let expiredCount = 0;
-      for (const challenge of challengesToExpire) {
-        await base44.asServiceRole.entities.VerificationChallenge.update(challenge.id, {
-          status: 'expired'
-        });
-        expiredCount++;
-      }
-
-      await logEvent(base44, 'corpus_item_rotated', 'system', corpus_id, 'admin', user.email, {
-        corpus_id: corpus_id,
-        title: corpus.title,
-        doi: corpus.doi,
-        challenges_expired: expiredCount
-      });
-
-      return successResponse({
-        corpus_id: corpus_id,
-        active: false,
-        challenges_expired: expiredCount,
-        message: `Corpus item deactivated. ${expiredCount} in-flight challenges expired.`
       });
       }
 
@@ -2672,54 +2550,20 @@ Deno.serve(async (req) => {
       let expiresAt = '';
       let challengeData = null;
 
-      // Handle academic journals category
+      // Handle academic journals - trust-based verification (no challenge required)
       if (capability.category === 'academic_journals') {
-        // Generate 32 bytes cryptographically random nonce
-        const randomBytes32 = new Uint8Array(32);
-        crypto.getRandomValues(randomBytes32);
-        nonce = Array.from(randomBytes32).map(b => b.toString(16).padStart(2, '0')).join('');
+        // For academic journals, we use trust-based verification
+        // Workers can claim the badge, but risk losing it if their task results are unsatisfactory
+        const randomBytes8 = new Uint8Array(8);
+        crypto.getRandomValues(randomBytes8);
+        nonce = 'clwds_' + Array.from(randomBytes8).map(b => b.toString(16).padStart(2, '0')).join('');
 
-        // Select random active corpus row matching source
-        const corpusRows = await base44.asServiceRole.entities.JournalChallengeCorpus.filter({
-          source: capability.subcategory,
-          active: true
-        });
-
-        if (!corpusRows || corpusRows.length === 0) {
-          return errorResponse('INVALID_PAYLOAD', `No active challenge corpus available for source: ${capability.subcategory}`);
-        }
-
-        // Select random corpus entry
-        const corpus = corpusRows[Math.floor(Math.random() * corpusRows.length)];
-
-        // Determine challenge type based on available expected hashes
-        if (corpus.expected_sha256_pdf) {
-          challengeType = 'journal_pdf_sha256';
-          instructions = generateJournalPdfInstructions(corpus.doi, nonce, capability.name);
-        } else if (corpus.derived_string_hash) {
-          challengeType = 'journal_derived_sha256';
-          instructions = generateJournalDerivedInstructions(
-            corpus.doi, 
-            nonce, 
-            capability.name,
-            corpus.derivation_method || 'page2_sha256_prefix16'
-          );
-        } else {
-          // Fallback if neither hash is available
-          return errorResponse('INVALID_PAYLOAD', `Corpus entry ${corpus.id} has no verification hashes configured`);
-        }
-
-        expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
-
+        challengeType = 'fetch_data';
+        instructions = `Academic journal access is trust-based. By claiming this capability, you assert that you have access to ${capability.name} resources. Your capability may be revoked if task results are unsatisfactory.\n\nTo complete verification, confirm by submitting: submit_verification with proof_url set to "trust_verified"`;
+        expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
         challengeData = {
-          corpus_id: corpus.id,
-          source: corpus.source,
-          doi: corpus.doi,
-          title: corpus.title,
-          nonce: nonce,
-          response_format: 'sha256_hex',
-          max_attempts: 3,
-          challenge_version: corpus.challenge_version
+          trust_based: true,
+          capability_name: capability.name
         };
 
       } else if (capability.subcategory === 'gpu') {
@@ -2816,95 +2660,20 @@ Deno.serve(async (req) => {
         return errorResponse('INVALID_PAYLOAD', 'Challenge has expired');
       }
       
-      // Handle journal PDF SHA256 verification
-      if (challenge.challenge_type === 'journal_pdf_sha256') {
-        // Validate required params
-        if (!result_hash) {
-          return errorResponse('INVALID_PAYLOAD', 'result_hash required for journal PDF verification');
+      // Handle trust-based verification (academic journals)
+      if (challenge.challenge_type === 'fetch_data' && challenge.challenge_data?.trust_based) {
+        // Trust-based verification - just confirm they acknowledged
+        if (proof_url !== 'trust_verified') {
+          return errorResponse('INVALID_PAYLOAD', 'For trust-based verification, submit proof_url as "trust_verified"');
         }
         
-        // Validate hash format (64 lowercase hex chars)
-        const cleanHash = result_hash.toLowerCase().trim();
-        if (!/^[a-f0-9]{64}$/.test(cleanHash)) {
-          return errorResponse('INVALID_PAYLOAD', 'result_hash must be 64 lowercase hex characters');
-        }
-        
-        // Check attempt count
-        const maxAttempts = challenge.challenge_data?.max_attempts || 3;
-        const currentAttempts = challenge.attempt_count || 0;
-        
-        if (currentAttempts >= maxAttempts) {
-          await base44.asServiceRole.entities.VerificationChallenge.update(challenge.id, {
-            status: 'failed',
-            last_attempt_at: new Date().toISOString()
-          });
-          return errorResponse('MAX_ATTEMPTS_REACHED', `Maximum ${maxAttempts} attempts exceeded for this challenge`);
-        }
-        
-        // Lookup corpus
-        const corpusId = challenge.challenge_data?.corpus_id;
-        if (!corpusId) {
-          return errorResponse('INTERNAL_ERROR', 'Challenge missing corpus_id');
-        }
-        
-        const corpusRows = await base44.asServiceRole.entities.JournalChallengeCorpus.filter({ id: corpusId });
-        if (!corpusRows || corpusRows.length === 0) {
-          return errorResponse('INTERNAL_ERROR', 'Corpus entry not found');
-        }
-        
-        const corpus = corpusRows[0];
-        
-        if (!corpus.expected_sha256_pdf) {
-          return errorResponse('INTERNAL_ERROR', 'Corpus entry has no expected_sha256_pdf');
-        }
-        
-        // Compute expected hash: SHA256(nonce + pdf_bytes)
-        // The corpus stores SHA256(pdf_bytes), so we need to verify differently
-        // Actually, we expect the worker to compute SHA256(nonce + pdf_bytes)
-        // We need to store the expected result or have a way to verify
-        
-        // For PDF verification, the corpus.expected_sha256_pdf is SHA256 of the raw PDF
-        // Worker computes: SHA256(nonce + pdf_bytes)
-        // We cannot verify this server-side without the PDF bytes
-        
-        // REVISED APPROACH: Store expected_sha256_pdf as the hash that worker should match
-        // Worker downloads PDF, computes SHA256(nonce_bytes + pdf_bytes)
-        // We pre-compute and store SHA256(nonce + pdf_bytes) when challenge is created? No, nonce changes.
-        
-        // CORRECT APPROACH for journal_pdf_sha256:
-        // 1. corpus.expected_sha256_pdf = SHA256(pdf_bytes) - the static PDF hash
-        // 2. Worker computes: SHA256(nonce + corpus.expected_sha256_pdf)
-        // 3. Server computes same and compares
-        
-        // Let's use this approach: worker submits SHA256(nonce + SHA256(pdf))
-        const expectedHash = await sha256Hex(challenge.nonce + corpus.expected_sha256_pdf);
-        
-        // Update attempt count
-        await base44.asServiceRole.entities.VerificationChallenge.update(challenge.id, {
-          attempt_count: currentAttempts + 1,
-          last_attempt_at: new Date().toISOString()
-        });
-        
-        // Compare hashes
-        if (cleanHash !== expectedHash) {
-          // Check if max attempts now reached
-          if (currentAttempts + 1 >= maxAttempts) {
-            await base44.asServiceRole.entities.VerificationChallenge.update(challenge.id, {
-              status: 'failed'
-            });
-            return errorResponse('INVALID_PAYLOAD', 'Hash mismatch. Maximum attempts reached. Challenge failed.');
-          }
-          
-          return errorResponse('INVALID_PAYLOAD', `Hash mismatch. ${maxAttempts - currentAttempts - 1} attempts remaining.`);
-        }
-        
-        // SUCCESS - mark challenge as verified
         const verifiedAt = new Date().toISOString();
         
         await base44.asServiceRole.entities.VerificationChallenge.update(challenge.id, {
           status: 'verified',
+          proof_url: proof_url,
           proof_data: {
-            submitted_hash: cleanHash,
+            trust_based: true,
             verified_at: verifiedAt
           },
           verified_at: verifiedAt
@@ -2919,18 +2688,17 @@ Deno.serve(async (req) => {
         if (existingCaps.length > 0) {
           await base44.asServiceRole.entities.WorkerCapability.update(existingCaps[0].id, {
             status: 'verified',
-            verified_by: 'system',
-            verification_date: verifiedAt,
-            reputation_score: (existingCaps[0].reputation_score || 0) + 10
+            verified_by: 'trust',
+            verification_date: verifiedAt
           });
         } else {
           await base44.asServiceRole.entities.WorkerCapability.create({
             worker_id: worker.id,
             capability_id: challenge.capability_id,
             status: 'verified',
-            verified_by: 'system',
+            verified_by: 'trust',
             verification_date: verifiedAt,
-            reputation_score: 10,
+            reputation_score: 0,
             total_tasks: 0,
             success_rate: 0
           });
@@ -2940,13 +2708,11 @@ Deno.serve(async (req) => {
         const capabilities = await base44.asServiceRole.entities.Capability.filter({ id: challenge.capability_id });
         const capabilityName = capabilities.length > 0 ? capabilities[0].name : null;
         
-        await logEvent(base44, 'capability_verified', 'worker', worker.id, 'system', 'verification_challenge', {
+        await logEvent(base44, 'capability_verified', 'worker', worker.id, 'trust', 'trust_verification', {
           challenge_id: challenge.id,
           capability_id: challenge.capability_id,
           capability_name: capabilityName,
-          challenge_type: 'journal_pdf_sha256',
-          corpus_id: corpusId,
-          doi: corpus.doi,
+          challenge_type: 'trust_based',
           verified_at: verifiedAt
         });
         
@@ -2957,140 +2723,8 @@ Deno.serve(async (req) => {
           status: 'verified',
           verified: true,
           verified_at: verifiedAt,
-          verification_notes: 'Journal PDF access verified successfully.',
-          message: 'Verification successful. Capability has been verified.'
-        });
-      }
-      
-      // Handle journal derived SHA256 verification
-      if (challenge.challenge_type === 'journal_derived_sha256') {
-        // Validate required params
-        if (!result_hash) {
-          return errorResponse('INVALID_PAYLOAD', 'result_hash required for journal derived verification');
-        }
-        
-        // Validate hash format (64 lowercase hex chars)
-        const cleanHash = result_hash.toLowerCase().trim();
-        if (!/^[a-f0-9]{64}$/.test(cleanHash)) {
-          return errorResponse('INVALID_PAYLOAD', 'result_hash must be 64 lowercase hex characters');
-        }
-        
-        // Check attempt count
-        const maxAttempts = challenge.challenge_data?.max_attempts || 3;
-        const currentAttempts = challenge.attempt_count || 0;
-        
-        if (currentAttempts >= maxAttempts) {
-          await base44.asServiceRole.entities.VerificationChallenge.update(challenge.id, {
-            status: 'failed',
-            last_attempt_at: new Date().toISOString()
-          });
-          return errorResponse('MAX_ATTEMPTS_REACHED', `Maximum ${maxAttempts} attempts exceeded for this challenge`);
-        }
-        
-        // Lookup corpus
-        const corpusId = challenge.challenge_data?.corpus_id;
-        if (!corpusId) {
-          return errorResponse('INTERNAL_ERROR', 'Challenge missing corpus_id');
-        }
-        
-        const corpusRows = await base44.asServiceRole.entities.JournalChallengeCorpus.filter({ id: corpusId });
-        if (!corpusRows || corpusRows.length === 0) {
-          return errorResponse('INTERNAL_ERROR', 'Corpus entry not found');
-        }
-        
-        const corpus = corpusRows[0];
-        
-        if (!corpus.derived_string_hash) {
-          return errorResponse('INTERNAL_ERROR', 'Corpus entry has no derived_string_hash');
-        }
-        
-        // Compute expected hash: SHA256(derived_string_hash + nonce)
-        // The worker computes SHA256(derived_string + nonce) where derived_string is what they extracted
-        // We store derived_string_hash which is the pre-computed correct derived_string
-        // So expected = SHA256(derived_string_hash + nonce)
-        const expectedHash = await sha256Hex(corpus.derived_string_hash + challenge.nonce);
-        
-        // Update attempt count
-        await base44.asServiceRole.entities.VerificationChallenge.update(challenge.id, {
-          attempt_count: currentAttempts + 1,
-          last_attempt_at: new Date().toISOString()
-        });
-        
-        // Compare hashes
-        if (cleanHash !== expectedHash) {
-          // Check if max attempts now reached
-          if (currentAttempts + 1 >= maxAttempts) {
-            await base44.asServiceRole.entities.VerificationChallenge.update(challenge.id, {
-              status: 'failed'
-            });
-            return errorResponse('INVALID_PAYLOAD', 'Hash mismatch. Maximum attempts reached. Challenge failed.');
-          }
-          
-          return errorResponse('INVALID_PAYLOAD', `Hash mismatch. ${maxAttempts - currentAttempts - 1} attempts remaining.`);
-        }
-        
-        // SUCCESS - mark challenge as verified
-        const verifiedAt = new Date().toISOString();
-        
-        await base44.asServiceRole.entities.VerificationChallenge.update(challenge.id, {
-          status: 'verified',
-          proof_data: {
-            submitted_hash: cleanHash,
-            verified_at: verifiedAt
-          },
-          verified_at: verifiedAt
-        });
-        
-        // Upsert WorkerCapability
-        const existingCaps = await base44.asServiceRole.entities.WorkerCapability.filter({
-          worker_id: worker.id,
-          capability_id: challenge.capability_id
-        });
-        
-        if (existingCaps.length > 0) {
-          await base44.asServiceRole.entities.WorkerCapability.update(existingCaps[0].id, {
-            status: 'verified',
-            verified_by: 'system',
-            verification_date: verifiedAt,
-            reputation_score: (existingCaps[0].reputation_score || 0) + 10
-          });
-        } else {
-          await base44.asServiceRole.entities.WorkerCapability.create({
-            worker_id: worker.id,
-            capability_id: challenge.capability_id,
-            status: 'verified',
-            verified_by: 'system',
-            verification_date: verifiedAt,
-            reputation_score: 10,
-            total_tasks: 0,
-            success_rate: 0
-          });
-        }
-        
-        // Get capability name
-        const capabilities = await base44.asServiceRole.entities.Capability.filter({ id: challenge.capability_id });
-        const capabilityName = capabilities.length > 0 ? capabilities[0].name : null;
-        
-        await logEvent(base44, 'capability_verified', 'worker', worker.id, 'system', 'verification_challenge', {
-          challenge_id: challenge.id,
-          capability_id: challenge.capability_id,
-          capability_name: capabilityName,
-          challenge_type: 'journal_derived_sha256',
-          corpus_id: corpusId,
-          doi: corpus.doi,
-          derivation_method: corpus.derivation_method,
-          verified_at: verifiedAt
-        });
-        
-        return successResponse({
-          challenge_id: challenge.id,
-          capability_id: challenge.capability_id,
-          capability_name: capabilityName,
-          status: 'verified',
-          verified: true,
-          verified_at: verifiedAt,
-          verification_notes: 'Journal access verified via derived content proof.',
-          message: 'Verification successful. Capability has been verified.'
+          verification_notes: 'Trust-based verification. Capability may be revoked if task results are unsatisfactory.',
+          message: 'Verification successful. Capability has been verified on trust basis.'
         });
       }
       
