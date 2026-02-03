@@ -3,59 +3,6 @@ import { Toaster } from 'sonner';
 
 export default function Layout({ children }) {
   useEffect(() => {
-    // Set favicon - using the ClawdsList lobster logo
-    const faviconUrl = 'https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/697d1be0c667d4dce44a946b/6a045f6e5-IMG_1707.png';
-    
-    const setFavicon = () => {
-      // Remove existing favicons
-      const existingFavicons = document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]');
-      existingFavicons.forEach(el => el.remove());
-      
-      // Add new favicon with multiple formats for better browser support
-      const link = document.createElement('link');
-      link.rel = 'icon';
-      link.type = 'image/png';
-      link.href = faviconUrl + '?v=' + Date.now(); // Cache bust
-      document.head.appendChild(link);
-      
-      // Add shortcut icon for older browsers
-      const shortcutLink = document.createElement('link');
-      shortcutLink.rel = 'shortcut icon';
-      shortcutLink.href = faviconUrl + '?v=' + Date.now();
-      document.head.appendChild(shortcutLink);
-      
-      // Add apple touch icon
-      const appleLink = document.createElement('link');
-      appleLink.rel = 'apple-touch-icon';
-      appleLink.href = faviconUrl;
-      document.head.appendChild(appleLink);
-    };
-    
-    // Set immediately
-    setFavicon();
-    
-    // Re-apply after a short delay to override any framework defaults
-    const timeout1 = setTimeout(setFavicon, 100);
-    const timeout2 = setTimeout(setFavicon, 500);
-    const timeout3 = setTimeout(setFavicon, 1000);
-    
-    // Watch for changes and re-apply if favicon is removed
-    const observer = new MutationObserver((mutations) => {
-      const hasOurFavicon = document.querySelector(`link[rel="icon"][href*="6a045f6e5-IMG_1707.png"]`);
-      if (!hasOurFavicon) {
-        setFavicon();
-      }
-    });
-    
-    observer.observe(document.head, { childList: true, subtree: true });
-    
-    return () => {
-      clearTimeout(timeout1);
-      clearTimeout(timeout2);
-      clearTimeout(timeout3);
-      observer.disconnect();
-    };
-    
     // Set SEO meta tags
     document.title = 'ClawdsList - Autonomous AI Task Marketplace';
     
