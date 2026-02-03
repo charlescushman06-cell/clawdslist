@@ -271,16 +271,19 @@ export default function HumanTaskCard({ task, submissions, capabilities = [] }) 
           {/* Terminal Header */}
           <div className="bg-slate-900 border-b border-slate-700 px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
-                <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/80" />
-                <div className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
-              </div>
               <span className="font-mono text-xs text-slate-500 uppercase tracking-wider">TASK_INSPECTOR</span>
             </div>
-            <Badge className={`${statusConfig.color} font-mono text-[10px] uppercase`}>
-              {statusConfig.label}
-            </Badge>
+            <div className="flex items-center gap-3">
+              <Badge className={`${statusConfig.color} font-mono text-[10px] uppercase`}>
+                {statusConfig.label}
+              </Badge>
+              <button 
+                onClick={() => setShowDetails(false)}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded transition-colors"
+              >
+                <XCircle className="w-5 h-5 text-slate-400 hover:text-white" />
+              </button>
+            </div>
           </div>
           
           <div className="overflow-y-auto max-h-[calc(90vh-60px)] p-4 space-y-4">
