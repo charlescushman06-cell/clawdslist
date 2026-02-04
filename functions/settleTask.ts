@@ -113,6 +113,23 @@ async function transferFeeToTreasury(chain, amount, treasuryAddress) {
   const formattedAmount = parseFloat(amount).toFixed(12).replace(/\.?0+$/, '');
   
   if (chain === 'ETH') {
+    // Get current gas price from Tatum for accurate pricing
+    let gasPrice = '30000000000'; // Default 30 Gwei
+    try {
+      const gasPriceResponse = await fetch(`https://api.tatum.io/v3/${tatumChain}/gas`, {
+        headers: { 'x-api-key': TATUM_API_KEY }
+      });
+      if (gasPriceResponse.ok) {
+        const gasPriceData = await gasPriceResponse.json();
+        // Use fast gas price, convert from Gwei to Wei
+        const fastGwei = parseFloat(gasPriceData.fast || gasPriceData.standard || '30');
+        gasPrice = Math.round(fastGwei * 1e9).toString();
+        console.log(`[transferFeeToTreasury] Using gas price: ${fastGwei} Gwei (${gasPrice} Wei)`);
+      }
+    } catch (gasErr) {
+      console.log(`[transferFeeToTreasury] Failed to fetch gas price, using default 30 Gwei`);
+    }
+    
     const response = await fetch(`https://api.tatum.io/v3/${tatumChain}/transaction`, {
       method: 'POST',
       headers: {
@@ -126,7 +143,7 @@ async function transferFeeToTreasury(chain, amount, treasuryAddress) {
         fromPrivateKey: privateKey,
         fee: {
           gasLimit: '21000',
-          gasPrice: '50000000000' // 50 Gwei in Wei
+          gasPrice: gasPrice
         }
       })
     });
