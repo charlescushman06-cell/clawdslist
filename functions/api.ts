@@ -2182,6 +2182,21 @@ Deno.serve(async (req) => {
           })
         });
 
+        // Trigger on-chain sweep from worker's deposit address to hot wallet
+        // This ensures actual crypto moves to escrow (hot wallet)
+        try {
+          const sweepResult = await base44.asServiceRole.functions.invoke('sweepDeposits', {
+            action: 'sweep_worker',
+            worker_id: worker.id,
+            chain: chain,
+            amount: rewardAmount
+          });
+          console.log(`[create_task] Sweep triggered for escrow:`, JSON.stringify(sweepResult.data || sweepResult));
+        } catch (sweepErr) {
+          console.log(`[create_task] Sweep for escrow failed (non-fatal):`, sweepErr.message);
+          // Non-fatal - ledger is correct, on-chain sweep can happen later
+        }
+
         await logEvent(base44, 'escrow_locked', 'task', null, 'worker', worker.id, {
           chain,
           amount: rewardAmount,
