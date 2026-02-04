@@ -272,9 +272,12 @@ async function settleTask(base44, taskId, submissionId = null) {
   });
   console.log(`[settleTask] Credited solver locked_balance: ${solverAccount.locked_balance} -> ${newSolverLocked} (payout: ${payoutAmount}, will release after fee transfer)`);
   
-  // 3. Transfer protocol fee directly to treasury wallet on-chain
+  // 3. Transfer 5% protocol fee to treasury wallet on-chain
+  let feeTransferSuccess = false;
+  let feeTxHash = null;
+  
   if (toScaled(feeAmount) > 0n) {
-    console.log(`[settleTask] Transferring protocol fee to treasury: ${feeAmount} ${chain}`);
+    console.log(`[settleTask] Transferring 5% protocol fee to treasury: ${feeAmount} ${chain}`);
     
     // Get treasury address from ProtocolConfig
     const configs = await base44.asServiceRole.entities.ProtocolConfig.filter({
@@ -292,6 +295,9 @@ async function settleTask(base44, taskId, submissionId = null) {
         console.log(`[settleTask] Treasury transfer result:`, JSON.stringify(transferResult));
         
         if (transferResult.txHash) {
+          feeTransferSuccess = true;
+          feeTxHash = transferResult.txHash;
+          
           // Log the on-chain transfer
           await base44.asServiceRole.entities.LedgerEntry.create({
             chain,
@@ -330,6 +336,7 @@ async function settleTask(base44, taskId, submissionId = null) {
           available_balance: newProtocolBalance
         });
         console.log(`[settleTask] Fell back to ledger accrual: ${newProtocolBalance}`);
+        feeTransferSuccess = true; // Still consider it successful for the hold period
       }
     } else {
       // No treasury configured - just track in ledger
@@ -339,10 +346,48 @@ async function settleTask(base44, taskId, submissionId = null) {
       await base44.asServiceRole.entities.LedgerAccount.update(protocolAccount.id, {
         available_balance: newProtocolBalance
       });
+      feeTransferSuccess = true;
     }
   } else {
     console.log(`[settleTask] No protocol fee to accrue (feeAmount=${feeAmount})`);
+    feeTransferSuccess = true; // No fee needed, proceed with release
   }
+  
+  // 3.5. Wait 1 minute hold period before releasing solver's funds
+  const withdrawalUnlocksAt = new Date(Date.now() + WITHDRAWAL_HOLD_MS).toISOString();
+  console.log(`[settleTask] Starting 1 minute hold period. Solver funds will unlock at: ${withdrawalUnlocksAt}`);
+  
+  // Store the unlock time on the task for tracking
+  await base44.asServiceRole.entities.Task.update(taskId, {
+    status: 'completed',
+    escrow_status: 'released',
+    completed_at: new Date().toISOString()
+  });
+  
+  // Wait for the hold period
+  await new Promise(resolve => setTimeout(resolve, WITHDRAWAL_HOLD_MS));
+  
+  console.log(`[settleTask] Hold period complete. Releasing solver funds from locked to available.`);
+  
+  // 3.6. Release solver's funds from locked to available after hold period
+  const solverAccountAfterHold = await getOrCreateLedgerAccount(base44, 'worker', solverId, chain);
+  const finalSolverLocked = subtractDecimal(solverAccountAfterHold.locked_balance || '0', payoutAmount);
+  const finalSolverAvailable = addDecimal(solverAccountAfterHold.available_balance || '0', payoutAmount);
+  
+  await base44.asServiceRole.entities.LedgerAccount.update(solverAccountAfterHold.id, {
+    locked_balance: finalSolverLocked,
+    available_balance: finalSolverAvailable
+  });
+  
+  console.log(`[settleTask] Solver funds released: locked=${solverAccountAfterHold.locked_balance}->${finalSolverLocked}, available=${solverAccountAfterHold.available_balance}->${finalSolverAvailable}`);
+  
+  await logEvent(base44, 'funds_unlocked', 'task', taskId, 'system', 'settlement', {
+    chain,
+    solver_id: solverId,
+    amount: payoutAmount,
+    hold_period_ms: WITHDRAWAL_HOLD_MS,
+    fee_tx_hash: feeTxHash
+  });
   
   // 4. Update task status
   await base44.asServiceRole.entities.Task.update(taskId, {
