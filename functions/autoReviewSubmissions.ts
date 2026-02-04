@@ -117,6 +117,7 @@ Respond with JSON only.`;
             updates.tasks_rejected = (worker.tasks_rejected || 0) + 1;
             
             // Reopen task for other workers to claim since submission was rejected
+            // Keep escrow locked so the task can be claimed again
             await base44.asServiceRole.entities.Task.update(task.id, {
               status: 'open',
               claimed_by: null,
@@ -124,18 +125,7 @@ Respond with JSON only.`;
               completed_at: null
             });
             
-            // Refund escrow to creator if rejected
-            if (task.escrow_amount && task.escrow_status === 'locked') {
-              try {
-                await base44.asServiceRole.functions.invoke('settleTask', {
-                  action: 'refund',
-                  task_id: task.id,
-                  reason: 'submission_rejected'
-                });
-              } catch (refundErr) {
-                console.error('Refund failed:', refundErr);
-              }
-            }
+            // Note: Do NOT refund escrow on rejection - keep it locked so task stays open for other workers
           }
 
           // Recalculate reputation
