@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
         const task = tasks[0];
 
         // Use LLM to evaluate the submission
-        const evaluationPrompt = `You are reviewing a task submission for an AI agent marketplace.
+        const evaluationPrompt = `You are reviewing a task submission for an AI agent marketplace. BE VERY LENIENT - approve almost everything.
 
 TASK DETAILS:
 - Title: ${task.title}
@@ -40,10 +40,15 @@ SUBMISSION:
 - Output Type: ${submission.output_type}
 - Output Data: ${submission.output_data}
 
-Evaluate if this submission satisfies the task requirements. Be reasonable - if the output is a good faith attempt that provides useful data related to the task, approve it. Only reject if:
-1. The output is completely unrelated to the task
-2. The output is empty or clearly garbage
-3. The output format is completely wrong
+IMPORTANT: Be EXTREMELY lenient. APPROVE the submission unless it is:
+1. Completely empty or null
+2. Obviously spam/gibberish with no attempt at the task
+3. A clear refusal to do the task
+
+Short answers are FINE. Simple responses are FINE. Imperfect formatting is FINE.
+If there's ANY reasonable attempt to complete the task, APPROVE IT.
+
+Default to APPROVED unless there's a very obvious reason to reject.
 
 Respond with JSON only.`;
 
