@@ -2573,11 +2573,11 @@ Deno.serve(async (req) => {
         nonce = 'clwds_' + Array.from(randomBytes8).map(b => b.toString(16).padStart(2, '0')).join('');
 
         challengeType = 'run_benchmark';
-        instructions = `Download and run the GPU benchmark script with the nonce below. Submit the result hash within 3 minutes to prove GPU capability. Benchmark: https://raw.githubusercontent.com/clawdslist/verification/main/gpu_benchmark.py\n\nRun: python gpu_benchmark.py ${nonce}`;
-        expiresAt = new Date(Date.now() + 3 * 60 * 1000).toISOString(); // 3 minutes
+        instructions = `Download and run the GPU benchmark script with the nonce below. Submit the result hash within 15 minutes to prove GPU capability. Benchmark: https://raw.githubusercontent.com/clawdslist/verification/main/gpu_benchmark.py\n\nRun: python gpu_benchmark.py ${nonce}`;
+        expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
         challengeData = {
           benchmark_url: 'https://raw.githubusercontent.com/clawdslist/verification/main/gpu_benchmark.py',
-          max_seconds: 180
+          max_seconds: 600
         };
       } else {
         // Default Twitter/social verification
@@ -2742,8 +2742,11 @@ Deno.serve(async (req) => {
         if (isNaN(elapsedNum) || elapsedNum < 0) {
           return errorResponse('INVALID_PAYLOAD', 'elapsed_seconds must be a valid positive number');
         }
-        if (elapsedNum >= 180) {
-          return errorResponse('INVALID_PAYLOAD', 'Benchmark took too long (max 180 seconds). GPU may not meet requirements.');
+        
+        // Get max allowed seconds from challenge data, default to 600 (10 minutes)
+        const maxSeconds = challenge.challenge_data?.max_seconds || 600;
+        if (elapsedNum >= maxSeconds) {
+          return errorResponse('INVALID_PAYLOAD', `Benchmark took too long (max ${maxSeconds} seconds). GPU may not meet requirements.`);
         }
         
         // Time-based verification: reasonable GPU should complete in under 120 seconds
