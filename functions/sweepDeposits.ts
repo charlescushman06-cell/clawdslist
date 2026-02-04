@@ -426,6 +426,106 @@ Deno.serve(async (req) => {
       });
     }
     
+    // Sweep specific worker's deposit address for escrow funding
+    if (action === 'sweep_worker') {
+      const { worker_id, amount } = body;
+      
+      if (!worker_id || !chain || !['ETH', 'BTC'].includes(chain)) {
+        return Response.json({ error: 'worker_id and chain (ETH/BTC) required' }, { status: 400 });
+      }
+      
+      const mnemonic = chain === 'ETH' ? DEPOSIT_MNEMONIC_ETH : DEPOSIT_MNEMONIC_BTC;
+      const hotWallet = chain === 'ETH' ? HOT_WALLET_ADDRESS_ETH : HOT_WALLET_ADDRESS_BTC;
+      
+      if (!mnemonic || !hotWallet) {
+        return Response.json({ error: `${chain} sweep not configured` }, { status: 500 });
+      }
+      
+      // Get worker's deposit address
+      const depositAddresses = await base44.asServiceRole.entities.WorkerDepositAddress.filter({
+        worker_id: worker_id,
+        chain: chain,
+        status: 'active'
+      });
+      
+      if (depositAddresses.length === 0) {
+        return Response.json({ 
+          skipped: true, 
+          reason: 'No deposit address for worker' 
+        });
+      }
+      
+      const deposit = depositAddresses[0];
+      
+      // Check on-chain balance
+      const onChainBalance = await getAddressBalance(chain, deposit.address);
+      console.log(`[sweep_worker] Worker ${worker_id} deposit ${deposit.address}: on-chain balance = ${onChainBalance} ${chain}`);
+      
+      // If balance is too low, skip (funds may already be swept)
+      const minSweep = chain === 'ETH' ? 0.0005 : 0.00005; // Lower threshold for escrow sweeps
+      if (parseFloat(onChainBalance) < minSweep) {
+        return Response.json({
+          skipped: true,
+          reason: `On-chain balance ${onChainBalance} below minimum ${minSweep}`,
+          address: deposit.address,
+          on_chain_balance: onChainBalance
+        });
+      }
+      
+      // Sweep to hot wallet
+      try {
+        let sweepResult;
+        if (chain === 'ETH') {
+          sweepResult = await sweepEthAddress(deposit.address, deposit.derivation_index, onChainBalance);
+        } else {
+          sweepResult = await sweepBtcAddress(deposit.address, deposit.derivation_index, onChainBalance);
+        }
+        
+        if (sweepResult.skipped) {
+          return Response.json({
+            skipped: true,
+            reason: sweepResult.reason,
+            address: deposit.address
+          });
+        }
+        
+        // Log sweep event
+        await base44.asServiceRole.entities.Event.create({
+          event_type: 'deposit_swept',
+          entity_type: 'deposit',
+          entity_id: deposit.address,
+          actor_type: 'system',
+          actor_id: 'escrow_sweep',
+          details: JSON.stringify({
+            chain,
+            from: deposit.address,
+            to: hotWallet,
+            amount: sweepResult.amount,
+            tx_hash: sweepResult.txHash,
+            worker_id: worker_id,
+            trigger: 'task_escrow'
+          })
+        });
+        
+        return Response.json({
+          success: true,
+          tx_hash: sweepResult.txHash,
+          amount: sweepResult.amount,
+          from: deposit.address,
+          to: hotWallet,
+          worker_id: worker_id
+        });
+        
+      } catch (err) {
+        console.error(`[sweep_worker] Sweep failed:`, err.message);
+        return Response.json({
+          error: err.message,
+          address: deposit.address,
+          on_chain_balance: onChainBalance
+        }, { status: 500 });
+      }
+    }
+    
     return Response.json({ error: 'Unknown action' }, { status: 400 });
     
   } catch (error) {
