@@ -61,6 +61,106 @@ async function logEvent(base44, eventType, entityType, entityId, actorType, acto
   });
 }
 
+/**
+ * Derive private key from hot wallet mnemonic
+ */
+async function derivePrivateKey(chain, index = 0) {
+  const tatumChain = chain === 'ETH' 
+    ? (TATUM_TESTNET ? 'ethereum-sepolia' : 'ethereum')
+    : (TATUM_TESTNET ? 'bitcoin-testnet' : 'bitcoin');
+  
+  const mnemonic = chain === 'ETH' ? HOT_WALLET_MNEMONIC_ETH : HOT_WALLET_MNEMONIC_BTC;
+  
+  if (!mnemonic) {
+    throw new Error(`HOT_WALLET_MNEMONIC_${chain} not configured`);
+  }
+  
+  const response = await fetch(`https://api.tatum.io/v3/${tatumChain}/wallet/priv`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': TATUM_API_KEY
+    },
+    body: JSON.stringify({ mnemonic, index })
+  });
+  
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(`Failed to derive private key: ${err.message || response.status}`);
+  }
+  
+  const data = await response.json();
+  return data.key;
+}
+
+/**
+ * Transfer protocol fee from hot wallet to treasury address on-chain
+ */
+async function transferFeeToTreasury(chain, amount, treasuryAddress) {
+  console.log(`[transferFeeToTreasury] Transferring ${amount} ${chain} to ${treasuryAddress}`);
+  
+  const tatumChain = chain === 'ETH' 
+    ? (TATUM_TESTNET ? 'ethereum-sepolia' : 'ethereum')
+    : (TATUM_TESTNET ? 'bitcoin-testnet' : 'bitcoin');
+  
+  // Derive private key from hot wallet (index 0)
+  const privateKey = await derivePrivateKey(chain, 0);
+  
+  // Format amount properly
+  const formattedAmount = parseFloat(amount).toFixed(12).replace(/\.?0+$/, '');
+  
+  if (chain === 'ETH') {
+    const response = await fetch(`https://api.tatum.io/v3/${tatumChain}/transaction`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': TATUM_API_KEY
+      },
+      body: JSON.stringify({
+        to: treasuryAddress,
+        amount: formattedAmount,
+        currency: 'ETH',
+        fromPrivateKey: privateKey,
+        fee: {
+          gasLimit: '21000',
+          gasPrice: '50000000000' // 50 Gwei in Wei
+        }
+      })
+    });
+    
+    const responseText = await response.text();
+    console.log(`[transferFeeToTreasury] Tatum response: ${response.status} ${responseText}`);
+    
+    if (!response.ok) {
+      throw new Error(`Tatum ETH transfer failed: ${response.status} - ${responseText}`);
+    }
+    
+    const data = JSON.parse(responseText);
+    return { txHash: data.txId || data.txHash };
+  } else {
+    // BTC transfer
+    const response = await fetch(`https://api.tatum.io/v3/${tatumChain}/transaction`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': TATUM_API_KEY
+      },
+      body: JSON.stringify({
+        fromAddress: [{ privateKey }],
+        to: [{ address: treasuryAddress, value: parseFloat(formattedAmount) }]
+      })
+    });
+    
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(`Tatum BTC transfer failed: ${err.message || response.status}`);
+    }
+    
+    const data = await response.json();
+    return { txHash: data.txId || data.txHash };
+  }
+}
+
 async function getOrCreateLedgerAccount(base44, ownerType, ownerId, chain) {
   // Build filter - for workers, we MUST include owner_id to get the right account
   const filter = { owner_type: ownerType, chain };
