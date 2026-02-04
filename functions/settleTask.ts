@@ -307,6 +307,9 @@ async function settleTask(base44, taskId, submissionId = null) {
     
     if (treasuryAddress && TATUM_API_KEY) {
       // Transfer fee directly to treasury on-chain
+      console.log(`[settleTask] Attempting treasury transfer: ${feeAmount} ${chain} to ${treasuryAddress}`);
+      console.log(`[settleTask] TATUM_API_KEY present: ${!!TATUM_API_KEY}, HOT_WALLET_MNEMONIC_ETH present: ${!!HOT_WALLET_MNEMONIC_ETH}`);
+      
       try {
         const transferResult = await transferFeeToTreasury(chain, feeAmount, treasuryAddress);
         console.log(`[settleTask] Treasury transfer result:`, JSON.stringify(transferResult));
@@ -345,7 +348,18 @@ async function settleTask(base44, taskId, submissionId = null) {
           });
         }
       } catch (transferErr) {
-        console.error(`[settleTask] Treasury transfer failed:`, transferErr.message);
+        console.error(`[settleTask] Treasury transfer FAILED:`, transferErr.message);
+        console.error(`[settleTask] Treasury transfer error stack:`, transferErr.stack);
+        
+        // Log the failure as an event for debugging
+        await logEvent(base44, 'treasury_transfer_failed', 'task', taskId, 'system', 'settlement', {
+          chain,
+          fee_amount: feeAmount,
+          treasury_address: treasuryAddress,
+          error: transferErr.message,
+          error_stack: transferErr.stack?.substring(0, 500)
+        });
+        
         // Fall back to ledger-only tracking if on-chain transfer fails
         const protocolAccount = await getOrCreateLedgerAccount(base44, 'protocol', null, chain);
         const newProtocolBalance = addDecimal(protocolAccount.available_balance || '0', feeAmount);
