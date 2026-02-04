@@ -290,16 +290,16 @@ async function broadcastEthTransaction(amount, destinationAddress) {
   console.log(`[broadcastEthTransaction] Amount: ${formattedAmount} ETH`);
   console.log(`[broadcastEthTransaction] Private key derived: ${privateKey ? 'YES' : 'NO'} (length: ${privateKey?.length || 0})`);
   
-  // Add gas price buffer (50% above network estimate) to ensure tx gets included
+  // Add gas price buffer to ensure tx gets included
+  // gasPrice is in Wei - 50 Gwei = 50,000,000,000 Wei
   const requestBody = {
     to: destinationAddress,
     amount: formattedAmount,
     currency: 'ETH',
     fromPrivateKey: privateKey,
-    feeCurrency: 'ETH',
     fee: {
       gasLimit: '21000',
-      gasPrice: '50' // 50 Gwei floor - ensures tx priority even during congestion
+      gasPrice: '50000000000' // 50 Gwei in Wei
     }
   };
   
