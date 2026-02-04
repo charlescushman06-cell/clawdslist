@@ -1124,6 +1124,13 @@ Deno.serve(async (req) => {
       const ethDepositAddr = depositAddresses.find(a => a.chain === 'ETH')?.address || null;
       const btcDepositAddr = depositAddresses.find(a => a.chain === 'BTC')?.address || null;
 
+      // Get payout addresses
+      const payoutAddresses = await base44.asServiceRole.entities.WorkerPayoutAddress.filter({
+        worker_id: worker.id
+      });
+      const ethPayoutAddr = payoutAddresses.find(a => a.chain === 'ETH')?.address || null;
+      const btcPayoutAddr = payoutAddresses.find(a => a.chain === 'BTC')?.address || null;
+
       return successResponse({
         id: worker.id,
         name: worker.name,
@@ -1136,6 +1143,14 @@ Deno.serve(async (req) => {
         last_active_at: worker.last_active_at,
         eth_address: worker.eth_address || ethDepositAddr,
         btc_address: worker.btc_address || btcDepositAddr,
+        deposit_addresses: {
+          ETH: ethDepositAddr,
+          BTC: btcDepositAddr
+        },
+        payout_addresses: {
+          ETH: ethPayoutAddr,
+          BTC: btcPayoutAddr
+        },
         balances: {
           ETH: {
             available: ethAccount.available_balance || '0',
