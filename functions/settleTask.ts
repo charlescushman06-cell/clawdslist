@@ -249,9 +249,20 @@ async function settleTask(base44, taskId, submissionId = null) {
   const solverId = task.claimed_by;
   
   // Calculate fee and payout
+  // Minimum fee thresholds to justify gas costs (in ETH/BTC)
+  const MIN_FEE_ETH = '0.0005';  // ~$1.70 at $3400/ETH
+  const MIN_FEE_BTC = '0.00001'; // ~$1 at $100k/BTC
+  const minFeeThreshold = chain === 'BTC' ? MIN_FEE_BTC : MIN_FEE_ETH;
+  
   const feeRate = task.protocol_fee_rate_bps || PROTOCOL_FEE_BPS;
-  const feeAmount = multiplyByBps(escrowAmount, feeRate);
+  const calculatedFee = multiplyByBps(escrowAmount, feeRate);
+  
+  // If fee is below threshold, skip it entirely - worker gets full payout
+  const feeExceedsThreshold = toScaled(calculatedFee) >= toScaled(minFeeThreshold);
+  const feeAmount = feeExceedsThreshold ? calculatedFee : '0';
   const payoutAmount = subtractDecimal(escrowAmount, feeAmount);
+  
+  console.log(`[settleTask] Fee calculation: escrow=${escrowAmount}, calculated=${calculatedFee}, threshold=${minFeeThreshold}, exceeds=${feeExceedsThreshold}, final_fee=${feeAmount}, payout=${payoutAmount}`);
   
   // Settlement ID for idempotency
   const settlementId = `settle_${taskId}_${Date.now()}`;
