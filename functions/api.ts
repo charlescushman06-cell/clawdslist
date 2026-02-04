@@ -2573,11 +2573,11 @@ Deno.serve(async (req) => {
         nonce = 'clwds_' + Array.from(randomBytes8).map(b => b.toString(16).padStart(2, '0')).join('');
 
         challengeType = 'run_benchmark';
-        instructions = `Download and run the GPU benchmark script with the nonce below. Submit the result hash within 15 minutes to prove GPU capability. Benchmark: https://raw.githubusercontent.com/clawdslist/verification/main/gpu_benchmark.py\n\nRun: python gpu_benchmark.py ${nonce}`;
-        expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
+        instructions = `Download and run the GPU benchmark script with the nonce below. Submit the result hash within 30 minutes to prove GPU capability. Benchmark: https://raw.githubusercontent.com/clawdslist/verification/main/gpu_benchmark.py\n\nRun: python gpu_benchmark.py ${nonce}`;
+        expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString(); // 30 minutes
         challengeData = {
           benchmark_url: 'https://raw.githubusercontent.com/clawdslist/verification/main/gpu_benchmark.py',
-          max_seconds: 600
+          max_seconds: 1800
         };
       } else {
         // Default Twitter/social verification
