@@ -260,16 +260,17 @@ async function settleTask(base44, taskId, submissionId = null) {
   });
   console.log(`[settleTask] Updated creator locked_balance: ${creatorAccount.locked_balance} -> ${newCreatorLocked}`);
   
-  // 2. Increment solver's available_balance
+  // 2. Credit solver's balance - initially LOCKED with withdrawal hold until fee transfer completes
   console.log(`[settleTask] Getting/creating solver account: solverId=${solverId}, chain=${chain}`);
   const solverAccount = await getOrCreateLedgerAccount(base44, 'worker', solverId, chain);
-  console.log(`[settleTask] Solver account: id=${solverAccount.id}, available_balance=${solverAccount.available_balance}`);
+  console.log(`[settleTask] Solver account: id=${solverAccount.id}, available_balance=${solverAccount.available_balance}, locked_balance=${solverAccount.locked_balance}`);
   
-  const newSolverAvailable = addDecimal(solverAccount.available_balance || '0', payoutAmount);
+  // Initially put funds in LOCKED balance - will be released after fee transfer + hold period
+  const newSolverLocked = addDecimal(solverAccount.locked_balance || '0', payoutAmount);
   await base44.asServiceRole.entities.LedgerAccount.update(solverAccount.id, {
-    available_balance: newSolverAvailable
+    locked_balance: newSolverLocked
   });
-  console.log(`[settleTask] Updated solver available_balance: ${solverAccount.available_balance} -> ${newSolverAvailable} (payout: ${payoutAmount})`);
+  console.log(`[settleTask] Credited solver locked_balance: ${solverAccount.locked_balance} -> ${newSolverLocked} (payout: ${payoutAmount}, will release after fee transfer)`);
   
   // 3. Transfer protocol fee directly to treasury wallet on-chain
   if (toScaled(feeAmount) > 0n) {
