@@ -2777,20 +2777,24 @@ Deno.serve(async (req) => {
           verified_at: verifiedAt
         });
         
-        // Find or create WorkerCapability
+        // Find or create WorkerCapability - with explicit error handling
+        let workerCapabilityRecord = null;
         const existingCaps = await base44.asServiceRole.entities.WorkerCapability.filter({
           worker_id: worker.id,
           capability_id: challenge.capability_id
         });
         
+        console.log(`[submit_verification] Worker ${worker.id} existing caps for ${challenge.capability_id}:`, existingCaps.length);
+        
         if (existingCaps.length > 0) {
-          await base44.asServiceRole.entities.WorkerCapability.update(existingCaps[0].id, {
+          workerCapabilityRecord = await base44.asServiceRole.entities.WorkerCapability.update(existingCaps[0].id, {
             status: 'verified',
             verified_by: 'system',
             verification_date: verifiedAt
           });
+          console.log(`[submit_verification] Updated existing WorkerCapability ${existingCaps[0].id} to verified`);
         } else {
-          await base44.asServiceRole.entities.WorkerCapability.create({
+          workerCapabilityRecord = await base44.asServiceRole.entities.WorkerCapability.create({
             worker_id: worker.id,
             capability_id: challenge.capability_id,
             status: 'verified',
@@ -2800,7 +2804,22 @@ Deno.serve(async (req) => {
             total_tasks: 0,
             success_rate: 0
           });
+          console.log(`[submit_verification] Created new WorkerCapability ${workerCapabilityRecord.id} as verified`);
         }
+        
+        // Verify the record was actually saved
+        const verifyCheck = await base44.asServiceRole.entities.WorkerCapability.filter({
+          worker_id: worker.id,
+          capability_id: challenge.capability_id,
+          status: 'verified'
+        });
+        
+        if (verifyCheck.length === 0) {
+          console.error(`[submit_verification] CRITICAL: WorkerCapability not saved! Worker ${worker.id}, Capability ${challenge.capability_id}`);
+          return errorResponse('INTERNAL_ERROR', 'Failed to save capability verification. Please try again.');
+        }
+        
+        console.log(`[submit_verification] Verified WorkerCapability record exists: ${verifyCheck[0].id}, status: ${verifyCheck[0].status}`);
         
         // Get capability name for response
         const capabilities = await base44.asServiceRole.entities.Capability.filter({ id: challenge.capability_id });
@@ -2813,7 +2832,8 @@ Deno.serve(async (req) => {
           challenge_type: 'run_benchmark',
           result_hash: result_hash,
           elapsed_seconds: elapsedNum,
-          verified_at: verifiedAt
+          verified_at: verifiedAt,
+          worker_capability_id: workerCapabilityRecord.id
         });
         
         return successResponse({
@@ -2823,6 +2843,7 @@ Deno.serve(async (req) => {
           status: 'verified',
           verified: true,
           verified_at: verifiedAt,
+          worker_capability_id: workerCapabilityRecord.id,
           benchmark_result: {
             result_hash: result_hash,
             elapsed_seconds: elapsedNum,
