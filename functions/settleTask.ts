@@ -60,22 +60,29 @@ async function getOrCreateLedgerAccount(base44, ownerType, ownerId, chain) {
   const filter = { owner_type: ownerType, chain };
   if (ownerType === 'worker' && ownerId) {
     filter.owner_id = ownerId;
-  } else if (ownerType === 'protocol') {
-    // Protocol accounts don't have owner_id
   }
+  // Protocol accounts: owner_type='protocol' and chain is sufficient
   
+  console.log(`[getOrCreateLedgerAccount] Querying with filter:`, JSON.stringify(filter));
   const accounts = await base44.asServiceRole.entities.LedgerAccount.filter(filter);
-  if (accounts.length > 0) return accounts[0];
+  console.log(`[getOrCreateLedgerAccount] Found ${accounts.length} accounts`);
+  
+  if (accounts.length > 0) {
+    console.log(`[getOrCreateLedgerAccount] Returning existing account: id=${accounts[0].id}, available=${accounts[0].available_balance}, locked=${accounts[0].locked_balance}`);
+    return accounts[0];
+  }
   
   // Create new account if doesn't exist
   console.log(`[settleTask] Creating new LedgerAccount: ownerType=${ownerType}, ownerId=${ownerId}, chain=${chain}`);
-  return await base44.asServiceRole.entities.LedgerAccount.create({
+  const newAccount = await base44.asServiceRole.entities.LedgerAccount.create({
     owner_type: ownerType,
     owner_id: ownerId || null,
     chain,
     available_balance: '0',
     locked_balance: '0'
   });
+  console.log(`[getOrCreateLedgerAccount] Created new account: id=${newAccount.id}`);
+  return newAccount;
 }
 
 // Settle a completed task: pay worker from escrow, take protocol fee
