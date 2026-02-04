@@ -140,34 +140,58 @@ async function deriveEthPrivateKey(mnemonic, index) {
 
 /**
  * Verify transaction exists on-chain via Tatum
+ * Uses longer waits and more attempts to account for propagation delay
  */
-async function verifyTransactionOnChain(txHash, maxAttempts = 3) {
+async function verifyTransactionOnChain(txHash, maxAttempts = 5) {
   const tatumChain = TATUM_TESTNET ? 'ethereum-sepolia' : 'ethereum';
   
+  console.log(`[verifyTransactionOnChain] Starting verification for ${txHash}, max ${maxAttempts} attempts`);
+  
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    // Wait a bit for tx to propagate (longer on each attempt)
-    await new Promise(r => setTimeout(r, (attempt + 1) * 2000));
+    // Wait longer on each attempt (3s, 5s, 8s, 12s, 15s)
+    const waitTime = (attempt + 1) * 2000 + (attempt * 1000);
+    console.log(`[verifyTransactionOnChain] Attempt ${attempt + 1}/${maxAttempts}, waiting ${waitTime}ms...`);
+    await new Promise(r => setTimeout(r, waitTime));
     
     try {
       const response = await fetch(`https://api.tatum.io/v3/${tatumChain}/transaction/${txHash}`, {
         headers: { 'x-api-key': TATUM_API_KEY }
       });
       
+      const responseText = await response.text();
+      console.log(`[verifyTransactionOnChain] Attempt ${attempt + 1} response status=${response.status}: ${responseText.slice(0, 500)}`);
+      
       if (response.ok) {
-        const txData = await response.json();
-        // If we get tx data back, it exists on-chain
-        if (txData && (txData.hash || txData.txId)) {
-          console.log(`[verifyTransactionOnChain] TX ${txHash} verified on attempt ${attempt + 1}`);
+        let txData;
+        try {
+          txData = JSON.parse(responseText);
+        } catch (e) {
+          console.log(`[verifyTransactionOnChain] Non-JSON response, tx likely not found`);
+          continue;
+        }
+        
+        // Check for actual tx data - Tatum returns blockNumber when tx is mined
+        // or at least the hash if it's in the mempool
+        if (txData && (txData.blockNumber || txData.blockHash || txData.hash === txHash)) {
+          console.log(`[verifyTransactionOnChain] TX ${txHash} VERIFIED on attempt ${attempt + 1}, blockNumber: ${txData.blockNumber}`);
           return { verified: true, txData };
         }
+        
+        // Tatum might return empty object or error object
+        if (!txData || Object.keys(txData).length === 0) {
+          console.log(`[verifyTransactionOnChain] Empty response, tx not found`);
+          continue;
+        }
+      } else if (response.status === 404 || response.status === 403) {
+        // TX definitely not found
+        console.log(`[verifyTransactionOnChain] TX ${txHash} not found (${response.status})`);
       }
-      
-      console.log(`[verifyTransactionOnChain] TX ${txHash} not found on attempt ${attempt + 1}`);
     } catch (err) {
       console.error(`[verifyTransactionOnChain] Error on attempt ${attempt + 1}:`, err.message);
     }
   }
   
+  console.log(`[verifyTransactionOnChain] TX ${txHash} NOT VERIFIED after ${maxAttempts} attempts`);
   return { verified: false };
 }
 
