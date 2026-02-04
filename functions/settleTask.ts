@@ -168,17 +168,74 @@ async function settleTask(base44, taskId, submissionId = null) {
   });
   console.log(`[settleTask] Updated solver available_balance: ${solverAccount.available_balance} -> ${newSolverAvailable} (payout: ${payoutAmount})`);
   
-  // 3. Increment protocol fee balance
+  // 3. Transfer protocol fee directly to treasury wallet on-chain
   if (toScaled(feeAmount) > 0n) {
-    console.log(`[settleTask] Accruing protocol fee: ${feeAmount} ${chain}`);
-    const protocolAccount = await getOrCreateLedgerAccount(base44, 'protocol', null, chain);
-    const oldProtocolBalance = protocolAccount.available_balance || '0';
-    const newProtocolBalance = addDecimal(oldProtocolBalance, feeAmount);
-    console.log(`[settleTask] Protocol account ${protocolAccount.id}: ${oldProtocolBalance} -> ${newProtocolBalance}`);
-    await base44.asServiceRole.entities.LedgerAccount.update(protocolAccount.id, {
-      available_balance: newProtocolBalance
+    console.log(`[settleTask] Transferring protocol fee to treasury: ${feeAmount} ${chain}`);
+    
+    // Get treasury address from ProtocolConfig
+    const configs = await base44.asServiceRole.entities.ProtocolConfig.filter({
+      config_key: 'treasury_addresses'
     });
-    console.log(`[settleTask] Protocol fee accrued successfully`);
+    
+    const treasuryAddress = configs.length > 0 
+      ? (chain === 'ETH' ? configs[0].eth_treasury_address : configs[0].btc_treasury_address)
+      : null;
+    
+    if (treasuryAddress && TATUM_API_KEY) {
+      // Transfer fee directly to treasury on-chain
+      try {
+        const transferResult = await transferFeeToTreasury(chain, feeAmount, treasuryAddress);
+        console.log(`[settleTask] Treasury transfer result:`, JSON.stringify(transferResult));
+        
+        if (transferResult.txHash) {
+          // Log the on-chain transfer
+          await base44.asServiceRole.entities.LedgerEntry.create({
+            chain,
+            amount: feeAmount,
+            entry_type: 'protocol_fee_accrual',
+            from_owner_type: 'worker',
+            from_owner_id: creatorId,
+            to_owner_type: 'protocol',
+            to_owner_id: null,
+            related_task_id: taskId,
+            related_submission_id: submissionId,
+            metadata: JSON.stringify({
+              settlement_id: settlementId,
+              fee_rate_bps: feeRate,
+              gross_amount: escrowAmount,
+              treasury_address: treasuryAddress,
+              tx_hash: transferResult.txHash,
+              transferred_on_chain: true
+            })
+          });
+          
+          await logEvent(base44, 'fee_collected', 'task', taskId, 'system', 'settlement', {
+            chain,
+            amount: feeAmount,
+            treasury_address: treasuryAddress,
+            tx_hash: transferResult.txHash,
+            transferred_on_chain: true
+          });
+        }
+      } catch (transferErr) {
+        console.error(`[settleTask] Treasury transfer failed:`, transferErr.message);
+        // Fall back to ledger-only tracking if on-chain transfer fails
+        const protocolAccount = await getOrCreateLedgerAccount(base44, 'protocol', null, chain);
+        const newProtocolBalance = addDecimal(protocolAccount.available_balance || '0', feeAmount);
+        await base44.asServiceRole.entities.LedgerAccount.update(protocolAccount.id, {
+          available_balance: newProtocolBalance
+        });
+        console.log(`[settleTask] Fell back to ledger accrual: ${newProtocolBalance}`);
+      }
+    } else {
+      // No treasury configured - just track in ledger
+      console.log(`[settleTask] No treasury configured, tracking in ledger only`);
+      const protocolAccount = await getOrCreateLedgerAccount(base44, 'protocol', null, chain);
+      const newProtocolBalance = addDecimal(protocolAccount.available_balance || '0', feeAmount);
+      await base44.asServiceRole.entities.LedgerAccount.update(protocolAccount.id, {
+        available_balance: newProtocolBalance
+      });
+    }
   } else {
     console.log(`[settleTask] No protocol fee to accrue (feeAmount=${feeAmount})`);
   }
