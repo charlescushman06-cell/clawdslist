@@ -139,6 +139,39 @@ async function deriveEthPrivateKey(mnemonic, index) {
 }
 
 /**
+ * Verify transaction exists on-chain via Tatum
+ */
+async function verifyTransactionOnChain(txHash, maxAttempts = 3) {
+  const tatumChain = TATUM_TESTNET ? 'ethereum-sepolia' : 'ethereum';
+  
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    // Wait a bit for tx to propagate (longer on each attempt)
+    await new Promise(r => setTimeout(r, (attempt + 1) * 2000));
+    
+    try {
+      const response = await fetch(`https://api.tatum.io/v3/${tatumChain}/transaction/${txHash}`, {
+        headers: { 'x-api-key': TATUM_API_KEY }
+      });
+      
+      if (response.ok) {
+        const txData = await response.json();
+        // If we get tx data back, it exists on-chain
+        if (txData && (txData.hash || txData.txId)) {
+          console.log(`[verifyTransactionOnChain] TX ${txHash} verified on attempt ${attempt + 1}`);
+          return { verified: true, txData };
+        }
+      }
+      
+      console.log(`[verifyTransactionOnChain] TX ${txHash} not found on attempt ${attempt + 1}`);
+    } catch (err) {
+      console.error(`[verifyTransactionOnChain] Error on attempt ${attempt + 1}:`, err.message);
+    }
+  }
+  
+  return { verified: false };
+}
+
+/**
  * Broadcast ETH transaction via Tatum
  */
 async function broadcastEthTransaction(amount, destinationAddress) {
@@ -187,9 +220,24 @@ async function broadcastEthTransaction(amount, destinationAddress) {
   }
 
   const data = await response.json();
+  const txHash = data.txId || data.txHash || data.signatureId;
+  
+  if (!txHash) {
+    throw new Error('No transaction hash returned from Tatum');
+  }
+  
+  // CRITICAL: Verify the transaction actually exists on-chain before returning success
+  console.log(`[broadcastEthTransaction] Got txHash ${txHash}, verifying on-chain...`);
+  const verification = await verifyTransactionOnChain(txHash);
+  
+  if (!verification.verified) {
+    throw new Error(`Transaction ${txHash} was signed but NOT found on-chain. Broadcast may have failed.`);
+  }
+  
   return {
-    txHash: data.txId || data.txHash || data.signatureId,
-    providerReference: data.signatureId || data.txId
+    txHash: txHash,
+    providerReference: data.signatureId || data.txId,
+    verified: true
   };
 }
 
