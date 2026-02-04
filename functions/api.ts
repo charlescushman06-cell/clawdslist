@@ -2184,6 +2184,7 @@ Deno.serve(async (req) => {
 
         // Trigger on-chain sweep from worker's deposit address to hot wallet
         // This ensures actual crypto moves to escrow (hot wallet)
+        console.log(`[create_task] About to call sweep_worker for worker ${worker.id}, chain ${chain}, amount ${rewardAmount}`);
         try {
           const sweepResult = await base44.asServiceRole.functions.invoke('sweepDeposits', {
             action: 'sweep_worker',
@@ -2191,9 +2192,25 @@ Deno.serve(async (req) => {
             chain: chain,
             amount: rewardAmount
           });
-          console.log(`[create_task] Sweep triggered for escrow:`, JSON.stringify(sweepResult.data || sweepResult));
+          console.log(`[create_task] Sweep result:`, JSON.stringify(sweepResult.data || sweepResult));
+          
+          // Log the sweep attempt as an event for debugging
+          await logEvent(base44, 'escrow_sweep_attempted', 'task', null, 'system', 'create_task', {
+            worker_id: worker.id,
+            chain,
+            amount: rewardAmount,
+            sweep_result: sweepResult.data || sweepResult,
+            success: !!(sweepResult.data?.tx_hash || sweepResult.data?.success)
+          });
         } catch (sweepErr) {
-          console.log(`[create_task] Sweep for escrow failed (non-fatal):`, sweepErr.message);
+          console.error(`[create_task] Sweep for escrow failed:`, sweepErr.message, sweepErr.stack);
+          // Log the error as an event for debugging
+          await logEvent(base44, 'escrow_sweep_failed', 'task', null, 'system', 'create_task', {
+            worker_id: worker.id,
+            chain,
+            amount: rewardAmount,
+            error: sweepErr.message
+          });
           // Non-fatal - ledger is correct, on-chain sweep can happen later
         }
 
