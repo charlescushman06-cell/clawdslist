@@ -123,14 +123,30 @@ Respond with JSON only.`;
             
             // Reopen task for other workers to claim since submission was rejected
             // Keep escrow locked so the task can be claimed again
+            console.log(`[autoReview] Rejection - reopening task ${task.id} for new claims`);
             await base44.asServiceRole.entities.Task.update(task.id, {
               status: 'open',
               claimed_by: null,
               claimed_at: null,
               completed_at: null
+              // Note: Do NOT touch escrow_status - keep it 'locked' so task stays funded
             });
+            console.log(`[autoReview] Task ${task.id} reopened successfully`);
             
-            // Note: Do NOT refund escrow on rejection - keep it locked so task stays open for other workers
+            // Log task reopened event
+            await base44.asServiceRole.entities.Event.create({
+              event_type: 'task_released',
+              entity_type: 'task',
+              entity_id: task.id,
+              actor_type: 'system',
+              actor_id: 'auto_reviewer',
+              details: JSON.stringify({ 
+                reason: 'submission_rejected', 
+                submission_id: submission.id, 
+                worker_id: worker.id,
+                rejection_reason: evaluation.reason
+              })
+            });
           }
 
           // Recalculate reputation
