@@ -1214,7 +1214,8 @@ Deno.serve(async (req) => {
     }
 
     // Initiate withdrawal (supports both crypto amount and legacy USD)
-    if (action === 'initiate_withdrawal') {
+    // Also supports 'withdraw' as an alias
+    if (action === 'initiate_withdrawal' || action === 'withdraw') {
       const { chain, amount, amount_usd, destination_address } = body;
       
       if (!chain || !['ETH', 'BTC'].includes(chain)) {
