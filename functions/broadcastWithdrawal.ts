@@ -196,6 +196,68 @@ async function verifyTransactionOnChain(txHash, maxAttempts = 5) {
 }
 
 /**
+ * Get current nonce for an address from Tatum
+ */
+async function getAddressNonce(address) {
+  const tatumChain = TATUM_TESTNET ? 'ethereum-sepolia' : 'ethereum';
+  
+  try {
+    const response = await fetch(`https://api.tatum.io/v3/${tatumChain}/transaction/count/${address}`, {
+      headers: { 'x-api-key': TATUM_API_KEY }
+    });
+    
+    if (response.ok) {
+      const count = await response.json();
+      console.log(`[getAddressNonce] Address ${address} nonce: ${count}`);
+      return count;
+    }
+    console.error(`[getAddressNonce] Failed to get nonce: ${response.status}`);
+    return null;
+  } catch (err) {
+    console.error(`[getAddressNonce] Error: ${err.message}`);
+    return null;
+  }
+}
+
+/**
+ * Get hot wallet address from mnemonic
+ */
+async function getHotWalletAddress() {
+  const tatumChain = TATUM_TESTNET ? 'ethereum-sepolia' : 'ethereum';
+  
+  // First derive the xpub
+  const xpubResponse = await fetch(`https://api.tatum.io/v3/${tatumChain}/wallet`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': TATUM_API_KEY
+    },
+    body: JSON.stringify({ mnemonic: HOT_WALLET_MNEMONIC_ETH })
+  });
+  
+  if (!xpubResponse.ok) {
+    console.error('[getHotWalletAddress] Failed to get xpub');
+    return null;
+  }
+  
+  const { xpub } = await xpubResponse.json();
+  
+  // Then derive address at index 0
+  const addrResponse = await fetch(`https://api.tatum.io/v3/${tatumChain}/address/${xpub}/0`, {
+    headers: { 'x-api-key': TATUM_API_KEY }
+  });
+  
+  if (!addrResponse.ok) {
+    console.error('[getHotWalletAddress] Failed to derive address');
+    return null;
+  }
+  
+  const { address } = await addrResponse.json();
+  console.log(`[getHotWalletAddress] Hot wallet address: ${address}`);
+  return address;
+}
+
+/**
  * Broadcast ETH transaction via Tatum
  * 
  * IMPORTANT: Tatum's /transaction endpoint with fromPrivateKey should sign AND broadcast.
@@ -212,12 +274,18 @@ async function broadcastEthTransaction(amount, destinationAddress) {
   // Derive private key from hot wallet mnemonic (index 0)
   const privateKey = await deriveEthPrivateKey(HOT_WALLET_MNEMONIC_ETH, 0);
 
+  // Get hot wallet address and current nonce for debugging
+  const hotWalletAddress = await getHotWalletAddress();
+  const currentNonce = hotWalletAddress ? await getAddressNonce(hotWalletAddress) : null;
+
   // Format amount - Tatum expects string with max 18 decimals
   // Keep reasonable precision (up to 12 decimals) to avoid rounding issues
   const formattedAmount = parseFloat(amount).toFixed(12).replace(/\.?0+$/, '');
 
   console.log(`[broadcastEthTransaction] ====== STARTING ETH BROADCAST ======`);
   console.log(`[broadcastEthTransaction] Chain: ${tatumChain}`);
+  console.log(`[broadcastEthTransaction] Hot Wallet: ${hotWalletAddress}`);
+  console.log(`[broadcastEthTransaction] Current Nonce: ${currentNonce}`);
   console.log(`[broadcastEthTransaction] To: ${destinationAddress}`);
   console.log(`[broadcastEthTransaction] Amount: ${formattedAmount} ETH`);
   console.log(`[broadcastEthTransaction] Private key derived: ${privateKey ? 'YES' : 'NO'} (length: ${privateKey?.length || 0})`);
@@ -228,6 +296,8 @@ async function broadcastEthTransaction(amount, destinationAddress) {
     currency: 'ETH',
     fromPrivateKey: privateKey
   };
+  
+  console.log(`[broadcastEthTransaction] Request body (without key): to=${requestBody.to}, amount=${requestBody.amount}, currency=${requestBody.currency}`);
   
   const response = await fetch(`https://api.tatum.io/v3/${tatumChain}/transaction`, {
     method: 'POST',
