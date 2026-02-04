@@ -778,16 +778,22 @@ Deno.serve(async (req) => {
           worker_id: worker.id,
           status: 'verified'
         });
-        
+
+        console.log(`[claim_task] Worker ${worker.id} has ${workerCapabilities.length} verified capabilities:`, 
+          workerCapabilities.map(wc => wc.capability_id));
+        console.log(`[claim_task] Task requires capabilities:`, task.required_capabilities);
+
         const verifiedCapabilityIds = new Set(workerCapabilities.map(wc => wc.capability_id));
-        
+
         // Check if worker has ALL required capabilities
         const missingCapabilities = task.required_capabilities.filter(
           capId => !verifiedCapabilityIds.has(capId)
         );
-        
+
+        console.log(`[claim_task] Missing capabilities:`, missingCapabilities);
+
         if (missingCapabilities.length > 0) {
-          return errorResponse('INVALID_PAYLOAD', 'Worker lacks required capabilities for this task');
+          return errorResponse('INVALID_PAYLOAD', `Worker lacks required capabilities for this task. Missing: ${missingCapabilities.join(', ')}. Worker has: ${Array.from(verifiedCapabilityIds).join(', ')}`);
         }
       }
       
