@@ -316,8 +316,8 @@ async function settleTask(base44, taskId, submissionId = null) {
       ? (chain === 'ETH' ? configs[0].eth_treasury_address : configs[0].btc_treasury_address)
       : null;
     
-    // Only attempt on-chain transfer if fee exceeds gas cost threshold
-    if (treasuryAddress && TATUM_API_KEY && feeExceedsThreshold) {
+    // Attempt on-chain transfer if treasury is configured
+    if (treasuryAddress && TATUM_API_KEY) {
       // Transfer fee directly to treasury on-chain
       console.log(`[settleTask] Attempting treasury transfer: ${feeAmount} ${chain} to ${treasuryAddress}`);
       console.log(`[settleTask] TATUM_API_KEY present: ${!!TATUM_API_KEY}, HOT_WALLET_MNEMONIC_ETH present: ${!!HOT_WALLET_MNEMONIC_ETH}`);
