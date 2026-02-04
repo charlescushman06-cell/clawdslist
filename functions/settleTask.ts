@@ -387,25 +387,7 @@ async function settleTask(base44, taskId, submissionId = null) {
     })
   });
   
-  // Protocol fee entry
-  if (toScaled(feeAmount) > 0n) {
-    await base44.asServiceRole.entities.LedgerEntry.create({
-      chain,
-      amount: feeAmount,
-      entry_type: 'protocol_fee_accrual',
-      from_owner_type: 'worker',
-      from_owner_id: creatorId,
-      to_owner_type: 'protocol',
-      to_owner_id: null,
-      related_task_id: taskId,
-      related_submission_id: submissionId,
-      metadata: JSON.stringify({
-        settlement_id: settlementId,
-        fee_rate_bps: feeRate,
-        gross_amount: escrowAmount
-      })
-    });
-  }
+  // Protocol fee entry is now created in step 3 when transferring to treasury
   
   // 6. Log events
   await logEvent(base44, 'escrow_released', 'task', taskId, 'system', 'settlement', {
