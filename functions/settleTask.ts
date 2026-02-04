@@ -164,10 +164,17 @@ async function settleTask(base44, taskId, submissionId = null) {
   
   // 3. Increment protocol fee balance
   if (toScaled(feeAmount) > 0n) {
+    console.log(`[settleTask] Accruing protocol fee: ${feeAmount} ${chain}`);
     const protocolAccount = await getOrCreateLedgerAccount(base44, 'protocol', null, chain);
+    const oldProtocolBalance = protocolAccount.available_balance || '0';
+    const newProtocolBalance = addDecimal(oldProtocolBalance, feeAmount);
+    console.log(`[settleTask] Protocol account ${protocolAccount.id}: ${oldProtocolBalance} -> ${newProtocolBalance}`);
     await base44.asServiceRole.entities.LedgerAccount.update(protocolAccount.id, {
-      available_balance: addDecimal(protocolAccount.available_balance || '0', feeAmount)
+      available_balance: newProtocolBalance
     });
+    console.log(`[settleTask] Protocol fee accrued successfully`);
+  } else {
+    console.log(`[settleTask] No protocol fee to accrue (feeAmount=${feeAmount})`);
   }
   
   // 4. Update task status
