@@ -381,38 +381,6 @@ async function settleTask(base44, taskId, submissionId = null) {
         console.log(`[settleTask] Fell back to ledger accrual: ${newProtocolBalance}`);
         feeTransferSuccess = true; // Still consider it successful for the hold period
       }
-    } else if (treasuryAddress && TATUM_API_KEY && !feeExceedsThreshold) {
-      // Fee too small for on-chain transfer - accumulate in protocol ledger for batch sweep later
-      console.log(`[settleTask] Fee ${feeAmount} ${chain} below threshold ${minFeeThreshold}, accumulating in protocol ledger for batch sweep`);
-      const protocolAccount = await getOrCreateLedgerAccount(base44, 'protocol', null, chain);
-      const newProtocolBalance = addDecimal(protocolAccount.available_balance || '0', feeAmount);
-      await base44.asServiceRole.entities.LedgerAccount.update(protocolAccount.id, {
-        available_balance: newProtocolBalance
-      });
-      
-      // Create ledger entry for tracking
-      await base44.asServiceRole.entities.LedgerEntry.create({
-        chain,
-        amount: feeAmount,
-        entry_type: 'protocol_fee_accrual',
-        from_owner_type: 'worker',
-        from_owner_id: creatorId,
-        to_owner_type: 'protocol',
-        to_owner_id: null,
-        related_task_id: taskId,
-        related_submission_id: submissionId,
-        metadata: JSON.stringify({
-          settlement_id: settlementId,
-          fee_rate_bps: feeRate,
-          gross_amount: escrowAmount,
-          treasury_address: treasuryAddress,
-          transferred_on_chain: false,
-          reason: 'below_gas_threshold',
-          threshold: minFeeThreshold
-        })
-      });
-      
-      feeTransferSuccess = true;
     } else {
       // No treasury configured - just track in ledger
       console.log(`[settleTask] No treasury configured (treasury=${treasuryAddress}, tatum=${!!TATUM_API_KEY}), tracking in ledger only`);
