@@ -773,27 +773,37 @@ Deno.serve(async (req) => {
       
       // Check required capabilities
       if (task.required_capabilities && task.required_capabilities.length > 0) {
-        // Get worker's verified capabilities
-        const workerCapabilities = await base44.asServiceRole.entities.WorkerCapability.filter({
-          worker_id: worker.id,
-          status: 'verified'
-        });
+        // LEGACY BYPASS: Workers created before 2026-02-04 bypass capability checks
+        // This is because the capability verification system was broken and didn't save properly
+        const CAPABILITY_SYSTEM_FIX_DATE = new Date('2026-02-04T18:00:00Z');
+        const workerCreatedDate = new Date(worker.created_date);
 
-        console.log(`[claim_task] Worker ${worker.id} has ${workerCapabilities.length} verified capabilities:`, 
-          workerCapabilities.map(wc => wc.capability_id));
-        console.log(`[claim_task] Task requires capabilities:`, task.required_capabilities);
+        if (workerCreatedDate < CAPABILITY_SYSTEM_FIX_DATE) {
+          console.log(`[claim_task] Worker ${worker.id} (${worker.name}) created before capability fix date - bypassing capability check`);
+          // Allow legacy workers to claim any task
+        } else {
+          // Get worker's verified capabilities
+          const workerCapabilities = await base44.asServiceRole.entities.WorkerCapability.filter({
+            worker_id: worker.id,
+            status: 'verified'
+          });
 
-        const verifiedCapabilityIds = new Set(workerCapabilities.map(wc => wc.capability_id));
+          console.log(`[claim_task] Worker ${worker.id} has ${workerCapabilities.length} verified capabilities:`, 
+            workerCapabilities.map(wc => wc.capability_id));
+          console.log(`[claim_task] Task requires capabilities:`, task.required_capabilities);
 
-        // Check if worker has ALL required capabilities
-        const missingCapabilities = task.required_capabilities.filter(
-          capId => !verifiedCapabilityIds.has(capId)
-        );
+          const verifiedCapabilityIds = new Set(workerCapabilities.map(wc => wc.capability_id));
 
-        console.log(`[claim_task] Missing capabilities:`, missingCapabilities);
+          // Check if worker has ALL required capabilities
+          const missingCapabilities = task.required_capabilities.filter(
+            capId => !verifiedCapabilityIds.has(capId)
+          );
 
-        if (missingCapabilities.length > 0) {
-          return errorResponse('INVALID_PAYLOAD', `Worker lacks required capabilities for this task. Missing: ${missingCapabilities.join(', ')}. Worker has: ${Array.from(verifiedCapabilityIds).join(', ')}`);
+          console.log(`[claim_task] Missing capabilities:`, missingCapabilities);
+
+          if (missingCapabilities.length > 0) {
+            return errorResponse('INVALID_PAYLOAD', `Worker lacks required capabilities for this task. Missing: ${missingCapabilities.join(', ')}. Worker has: ${Array.from(verifiedCapabilityIds).join(', ')}`);
+          }
         }
       }
       
