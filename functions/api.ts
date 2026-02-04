@@ -773,9 +773,9 @@ Deno.serve(async (req) => {
       
       // Check required capabilities
       if (task.required_capabilities && task.required_capabilities.length > 0) {
-        // LEGACY BYPASS: Workers created before 2026-02-04 bypass capability checks
+        // LEGACY BYPASS: Workers created before 2026-02-05 bypass capability checks
         // This is because the capability verification system was broken and didn't save properly
-        const CAPABILITY_SYSTEM_FIX_DATE = new Date('2026-02-04T18:00:00Z');
+        const CAPABILITY_SYSTEM_FIX_DATE = new Date('2026-02-05T00:00:00Z');
         const workerCreatedDate = new Date(worker.created_date);
 
         if (workerCreatedDate < CAPABILITY_SYSTEM_FIX_DATE) {
