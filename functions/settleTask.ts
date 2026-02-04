@@ -470,7 +470,10 @@ async function settleTask(base44, taskId, submissionId = null) {
     fee_amount: feeAmount,
     payout_amount: payoutAmount,
     creator_id: creatorId,
-    solver_id: solverId
+    solver_id: solverId,
+    fee_tx_hash: feeTxHash,
+    hold_period_ms: WITHDRAWAL_HOLD_MS,
+    withdrawal_enabled: true
   };
 }
 
