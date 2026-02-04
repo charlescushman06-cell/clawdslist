@@ -197,6 +197,10 @@ async function verifyTransactionOnChain(txHash, maxAttempts = 5) {
 
 /**
  * Broadcast ETH transaction via Tatum
+ * 
+ * IMPORTANT: Tatum's /transaction endpoint with fromPrivateKey should sign AND broadcast.
+ * However, we've seen cases where it returns a hash but doesn't actually broadcast.
+ * We now verify on-chain before returning success.
  */
 async function broadcastEthTransaction(amount, destinationAddress) {
   if (!HOT_WALLET_MNEMONIC_ETH) {
@@ -208,16 +212,22 @@ async function broadcastEthTransaction(amount, destinationAddress) {
   // Derive private key from hot wallet mnemonic (index 0)
   const privateKey = await deriveEthPrivateKey(HOT_WALLET_MNEMONIC_ETH, 0);
 
-  // Format amount - Tatum expects string with max 18 decimals, trim trailing zeros
-  const formattedAmount = parseFloat(amount).toFixed(18).replace(/\.?0+$/, '');
+  // Format amount - Tatum expects string with max 18 decimals
+  // Keep reasonable precision (up to 12 decimals) to avoid rounding issues
+  const formattedAmount = parseFloat(amount).toFixed(12).replace(/\.?0+$/, '');
 
-  // Use Tatum's transfer endpoint with fromPrivateKey
-  console.log(`[broadcastEthTransaction] Calling Tatum ${tatumChain}/transaction:`, JSON.stringify({
+  console.log(`[broadcastEthTransaction] ====== STARTING ETH BROADCAST ======`);
+  console.log(`[broadcastEthTransaction] Chain: ${tatumChain}`);
+  console.log(`[broadcastEthTransaction] To: ${destinationAddress}`);
+  console.log(`[broadcastEthTransaction] Amount: ${formattedAmount} ETH`);
+  console.log(`[broadcastEthTransaction] Private key derived: ${privateKey ? 'YES' : 'NO'} (length: ${privateKey?.length || 0})`);
+  
+  const requestBody = {
     to: destinationAddress,
     amount: formattedAmount,
     currency: 'ETH',
-    privateKeyLength: privateKey?.length || 0
-  }));
+    fromPrivateKey: privateKey
+  };
   
   const response = await fetch(`https://api.tatum.io/v3/${tatumChain}/transaction`, {
     method: 'POST',
@@ -225,57 +235,72 @@ async function broadcastEthTransaction(amount, destinationAddress) {
       'Content-Type': 'application/json',
       'x-api-key': TATUM_API_KEY
     },
-    body: JSON.stringify({
-      to: destinationAddress,
-      amount: formattedAmount,
-      currency: 'ETH',
-      fromPrivateKey: privateKey
-    })
+    body: JSON.stringify(requestBody)
   });
 
   // Log raw response for debugging
   const responseText = await response.text();
-  console.log(`[broadcastEthTransaction] Tatum response status=${response.status}:`, responseText);
+  console.log(`[broadcastEthTransaction] Tatum HTTP status: ${response.status} ${response.statusText}`);
+  console.log(`[broadcastEthTransaction] Tatum response body: ${responseText}`);
   
   let data;
   try {
     data = JSON.parse(responseText);
   } catch (parseErr) {
+    console.error(`[broadcastEthTransaction] Failed to parse response as JSON`);
     throw new Error(`Tatum returned non-JSON response: ${responseText.slice(0, 500)}`);
   }
 
+  // Log parsed response structure
+  console.log(`[broadcastEthTransaction] Parsed response keys: ${Object.keys(data).join(', ')}`);
+  console.log(`[broadcastEthTransaction] txId: ${data.txId}, txHash: ${data.txHash}, signatureId: ${data.signatureId}`);
+
   if (!response.ok) {
-    console.error('[broadcastEthTransaction] Tatum error details:', JSON.stringify({
-      status: response.status,
-      statusText: response.statusText,
-      fullResponse: data,
-      request: {
-        to: destinationAddress,
-        amount: formattedAmount
-      }
-    }));
+    console.error('[broadcastEthTransaction] ====== TATUM ERROR ======');
+    console.error(`[broadcastEthTransaction] Status: ${response.status}`);
+    console.error(`[broadcastEthTransaction] Message: ${data.message || data.msg || 'N/A'}`);
+    console.error(`[broadcastEthTransaction] Data: ${JSON.stringify(data.data || data)}`);
+    console.error(`[broadcastEthTransaction] ErrorCode: ${data.errorCode || 'N/A'}`);
+    
     // Include full error data in message
     const errorMsg = data.message || data.msg || (data.data ? JSON.stringify(data.data) : null) || `Tatum ETH broadcast failed: ${response.status}`;
     throw new Error(errorMsg);
   }
-  const txHash = data.txId || data.txHash || data.signatureId;
+  
+  const txHash = data.txId || data.txHash;
+  
+  // signatureId means Tatum is using KMS (custodial) which signs async - we need actual txHash
+  if (data.signatureId && !txHash) {
+    console.error(`[broadcastEthTransaction] Got signatureId but no txHash - Tatum using KMS mode?`);
+    throw new Error(`Tatum returned signatureId (${data.signatureId}) but no txHash. KMS mode not supported.`);
+  }
   
   if (!txHash) {
+    console.error(`[broadcastEthTransaction] No txHash in response: ${JSON.stringify(data)}`);
     throw new Error('No transaction hash returned from Tatum');
   }
   
+  console.log(`[broadcastEthTransaction] ====== GOT TX HASH: ${txHash} ======`);
+  console.log(`[broadcastEthTransaction] Now verifying transaction exists on-chain...`);
+  
   // CRITICAL: Verify the transaction actually exists on-chain before returning success
-  console.log(`[broadcastEthTransaction] Got txHash ${txHash}, verifying on-chain...`);
   const verification = await verifyTransactionOnChain(txHash);
   
   if (!verification.verified) {
-    throw new Error(`Transaction ${txHash} was signed but NOT found on-chain. Broadcast may have failed.`);
+    console.error(`[broadcastEthTransaction] ====== VERIFICATION FAILED ======`);
+    console.error(`[broadcastEthTransaction] TX ${txHash} was NOT found on-chain after multiple attempts`);
+    console.error(`[broadcastEthTransaction] This means Tatum signed but did NOT broadcast the transaction`);
+    throw new Error(`Transaction ${txHash} was signed but NOT found on-chain after 5 attempts. Tatum broadcast likely failed silently.`);
   }
+  
+  console.log(`[broadcastEthTransaction] ====== SUCCESS ======`);
+  console.log(`[broadcastEthTransaction] TX ${txHash} verified on-chain`);
   
   return {
     txHash: txHash,
     providerReference: data.signatureId || data.txId,
-    verified: true
+    verified: true,
+    blockNumber: verification.txData?.blockNumber
   };
 }
 
