@@ -87,6 +87,22 @@ async function sweepEthAddress(address, derivationIndex, amount) {
   // Derive the private key for this deposit address
   const privateKey = await deriveEthPrivateKey(DEPOSIT_MNEMONIC_ETH, derivationIndex);
   
+  // Get current gas price from Tatum
+  let gasPrice = '30000000000'; // Default 30 Gwei
+  try {
+    const gasPriceResponse = await fetch(`https://api.tatum.io/v3/${tatumChain}/gas`, {
+      headers: { 'x-api-key': TATUM_API_KEY }
+    });
+    if (gasPriceResponse.ok) {
+      const gasPriceData = await gasPriceResponse.json();
+      const fastGwei = parseFloat(gasPriceData.fast || gasPriceData.standard || '30');
+      gasPrice = Math.round(fastGwei * 1e9).toString();
+      console.log(`[sweepEthAddress] Using gas price: ${fastGwei} Gwei`);
+    }
+  } catch (gasErr) {
+    console.log(`[sweepEthAddress] Failed to fetch gas price, using default 30 Gwei`);
+  }
+  
   const response = await fetch(`https://api.tatum.io/v3/${tatumChain}/transaction`, {
     method: 'POST',
     headers: {
@@ -97,7 +113,11 @@ async function sweepEthAddress(address, derivationIndex, amount) {
       to: HOT_WALLET_ADDRESS_ETH,
       amount: sweepAmount,
       currency: 'ETH',
-      fromPrivateKey: privateKey
+      fromPrivateKey: privateKey,
+      fee: {
+        gasLimit: '21000',
+        gasPrice: gasPrice
+      }
     })
   });
   
