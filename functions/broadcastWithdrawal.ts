@@ -188,6 +188,13 @@ async function broadcastEthTransaction(amount, destinationAddress) {
   const formattedAmount = parseFloat(amount).toFixed(18).replace(/\.?0+$/, '');
 
   // Use Tatum's transfer endpoint with fromPrivateKey
+  console.log(`[broadcastEthTransaction] Calling Tatum ${tatumChain}/transaction:`, JSON.stringify({
+    to: destinationAddress,
+    amount: formattedAmount,
+    currency: 'ETH',
+    privateKeyLength: privateKey?.length || 0
+  }));
+  
   const response = await fetch(`https://api.tatum.io/v3/${tatumChain}/transaction`, {
     method: 'POST',
     headers: {
@@ -202,24 +209,31 @@ async function broadcastEthTransaction(amount, destinationAddress) {
     })
   });
 
+  // Log raw response for debugging
+  const responseText = await response.text();
+  console.log(`[broadcastEthTransaction] Tatum response status=${response.status}:`, responseText);
+  
+  let data;
+  try {
+    data = JSON.parse(responseText);
+  } catch (parseErr) {
+    throw new Error(`Tatum returned non-JSON response: ${responseText.slice(0, 500)}`);
+  }
+
   if (!response.ok) {
-    const errData = await response.json().catch(() => ({}));
-    console.error('[broadcastEthTransaction] Tatum error:', JSON.stringify({
+    console.error('[broadcastEthTransaction] Tatum error details:', JSON.stringify({
       status: response.status,
       statusText: response.statusText,
-      error: errData,
-      data: errData.data || null,
+      fullResponse: data,
       request: {
         to: destinationAddress,
         amount: formattedAmount
       }
     }));
     // Include full error data in message
-    const errorMsg = errData.message || errData.msg || (errData.data ? JSON.stringify(errData.data) : null) || `Tatum ETH broadcast failed: ${response.status}`;
+    const errorMsg = data.message || data.msg || (data.data ? JSON.stringify(data.data) : null) || `Tatum ETH broadcast failed: ${response.status}`;
     throw new Error(errorMsg);
   }
-
-  const data = await response.json();
   const txHash = data.txId || data.txHash || data.signatureId;
   
   if (!txHash) {
