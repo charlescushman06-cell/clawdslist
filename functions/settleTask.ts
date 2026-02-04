@@ -304,16 +304,8 @@ async function settleTask(base44, taskId, submissionId = null) {
   let feeTransferSuccess = false;
   let feeTxHash = null;
   
-  // Minimum fee thresholds to justify gas costs (in ETH/BTC)
-  // At ~15 gwei gas price, ETH transfer costs ~0.000315 ETH (~$1)
-  // Only transfer on-chain if fee exceeds this threshold
-  const MIN_FEE_ETH = '0.0005';  // ~$1.70 at $3400/ETH
-  const MIN_FEE_BTC = '0.00001'; // ~$1 at $100k/BTC
-  const minFeeThreshold = chain === 'BTC' ? MIN_FEE_BTC : MIN_FEE_ETH;
-  const feeExceedsThreshold = toScaled(feeAmount) >= toScaled(minFeeThreshold);
-  
   if (toScaled(feeAmount) > 0n) {
-    console.log(`[settleTask] Protocol fee: ${feeAmount} ${chain}, threshold: ${minFeeThreshold}, exceeds: ${feeExceedsThreshold}`);
+    console.log(`[settleTask] Protocol fee: ${feeAmount} ${chain}`);
     
     // Get treasury address from ProtocolConfig
     const configs = await base44.asServiceRole.entities.ProtocolConfig.filter({
