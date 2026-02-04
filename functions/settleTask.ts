@@ -389,12 +389,7 @@ async function settleTask(base44, taskId, submissionId = null) {
     fee_tx_hash: feeTxHash
   });
   
-  // 4. Update task status
-  await base44.asServiceRole.entities.Task.update(taskId, {
-    status: 'completed',
-    escrow_status: 'released',
-    completed_at: new Date().toISOString()
-  });
+  // 4. Task status already updated above before hold period
   
   // 5. Create LedgerEntries for audit trail
   
