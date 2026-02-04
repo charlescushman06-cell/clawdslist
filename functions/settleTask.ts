@@ -1,7 +1,10 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-// Protocol fee in basis points (200 = 2%, configurable via env)
-const PROTOCOL_FEE_BPS = parseInt(Deno.env.get('PROTOCOL_FEE_BPS') || '200', 10);
+// Protocol fee in basis points (500 = 5%)
+const PROTOCOL_FEE_BPS = parseInt(Deno.env.get('PROTOCOL_FEE_BPS') || '500', 10);
+
+// Withdrawal hold period in milliseconds (1 minute)
+const WITHDRAWAL_HOLD_MS = 60 * 1000;
 
 // Tatum config for on-chain treasury transfers
 const TATUM_API_KEY = Deno.env.get('TATUM_API_KEY_MAINNET');
