@@ -7,7 +7,7 @@ const PROTOCOL_FEE_BPS = parseInt(Deno.env.get('PROTOCOL_FEE_BPS') || '500', 10)
 const WITHDRAWAL_HOLD_MS = 60 * 1000;
 
 // Tatum config for on-chain treasury transfers
-const TATUM_API_KEY = Deno.env.get('TATUM_API_KEY_MAINNET');
+const TATUM_API_KEY = Deno.env.get('TATUM_API_KEY_MAINNET') || Deno.env.get('TATUM_API_KEY');
 const TATUM_TESTNET = Deno.env.get('TATUM_TESTNET') === 'true';
 const HOT_WALLET_MNEMONIC_ETH = Deno.env.get('HOT_WALLET_MNEMONIC_ETH');
 const HOT_WALLET_MNEMONIC_BTC = Deno.env.get('HOT_WALLET_MNEMONIC_BTC');
